@@ -1,0 +1,1085 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Supplement Claim Checker</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #f0f2f5;
+      color: #1a1a2e;
+      min-height: 100vh;
+    }
+
+    header {
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 60%, #0f3460 100%);
+      color: white;
+      padding: 24px 40px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.2);
+    }
+    header h1 { font-size: 1.4rem; font-weight: 700; }
+    header p  { font-size: 0.82rem; opacity: 0.7; margin-top: 2px; }
+
+    .container { max-width: 980px; margin: 0 auto; padding: 28px 20px; }
+
+    .card {
+      background: white;
+      border-radius: 12px;
+      padding: 24px 28px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+      margin-bottom: 20px;
+    }
+    .card-title { font-size: 0.9rem; font-weight: 700; color: #555; margin-bottom: 18px; text-transform: uppercase; letter-spacing: 0.5px; }
+
+    /* API KEY BAR */
+    #apiKeyBar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 16px;
+      background: #fffbeb;
+      border: 1.5px solid #fbbf24;
+      border-radius: 8px;
+      margin-bottom: 20px;
+    }
+    #apiKeyBar label { font-size: 0.8rem; font-weight: 600; color: #92400e; white-space: nowrap; }
+    #apiKeyBar input {
+      flex: 1;
+      border: 1px solid #fcd34d;
+      border-radius: 6px;
+      padding: 7px 12px;
+      font-size: 0.85rem;
+      font-family: monospace;
+      background: white;
+      outline: none;
+    }
+    #apiKeyBar input:focus { border-color: #f59e0b; }
+    .btn-sm {
+      padding: 7px 14px;
+      border: none;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+      background: #f59e0b;
+      color: white;
+      white-space: nowrap;
+    }
+    .btn-sm:hover { background: #d97706; }
+    #apiKeySaved { font-size: 0.75rem; color: #059669; display: none; }
+
+    /* FORM */
+    .form-row { display: grid; grid-template-columns: 260px 1fr; gap: 20px; align-items: start; }
+    @media (max-width: 620px) { .form-row { grid-template-columns: 1fr; } }
+
+    label.field-label { display: block; font-size: 0.75rem; font-weight: 700; color: #666; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
+
+    select, textarea {
+      width: 100%;
+      border: 1.5px solid #e0e4ea;
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 0.92rem;
+      font-family: inherit;
+      color: #1a1a2e;
+      background: #fafbfc;
+      transition: border-color 0.15s;
+      outline: none;
+    }
+    select:focus, textarea:focus { border-color: #0f3460; background: white; }
+    textarea { resize: vertical; min-height: 110px; line-height: 1.55; }
+    .char-count { font-size: 0.72rem; color: #bbb; text-align: right; margin-top: 4px; }
+
+    .btn-primary {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 12px 28px;
+      background: linear-gradient(135deg, #0f3460, #533483);
+      color: white; border: none; border-radius: 8px;
+      font-size: 0.95rem; font-weight: 600; cursor: pointer;
+      margin-top: 18px; transition: all 0.15s;
+    }
+    .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 14px rgba(15,52,96,.35); }
+    .btn-primary:active { transform: none; }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
+
+    /* STATUS BAR */
+    #statusBar {
+      display: none; align-items: center; gap: 12px;
+      padding: 13px 18px; background: #f0f4ff; border: 1.5px solid #c7d7ff;
+      border-radius: 8px; font-size: 0.88rem; color: #0f3460; margin-bottom: 20px;
+    }
+    .spinner {
+      width: 17px; height: 17px; border: 2px solid #c7d7ff; border-top-color: #0f3460;
+      border-radius: 50%; animation: spin .7s linear infinite; flex-shrink: 0;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* COMPLIANCE RESULT */
+    .status-banner {
+      display: flex; align-items: center; gap: 14px;
+      padding: 16px 20px; border-radius: 10px; margin-bottom: 18px; border: 2px solid;
+    }
+    .status-banner.compliant     { background: #f0fdf4; border-color: #22c55e; color: #15803d; }
+    .status-banner.non_compliant { background: #fef2f2; border-color: #ef4444; color: #b91c1c; }
+    .status-banner.needs_review  { background: #fffbeb; border-color: #f59e0b; color: #b45309; }
+
+    .status-icon { font-size: 1.7rem; }
+    .status-label { font-size: 1.05rem; font-weight: 700; }
+    .status-sub   { font-size: 0.83rem; opacity: 0.85; margin-top: 2px; }
+    .risk-badge {
+      margin-left: auto; padding: 4px 12px; border-radius: 99px;
+      font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px;
+    }
+    .risk-low    { background: #dcfce7; color: #166534; }
+    .risk-medium { background: #fef9c3; color: #854d0e; }
+    .risk-high   { background: #fee2e2; color: #991b1b; }
+
+    .section { margin-bottom: 20px; }
+    .section:last-child { margin-bottom: 0; }
+    .section-title {
+      font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px;
+      color: #999; margin-bottom: 10px; padding-bottom: 6px; border-bottom: 1px solid #f0f0f0;
+    }
+
+    .summary-text { font-size: 0.9rem; line-height: 1.7; color: #374151; }
+
+    .violation-item {
+      padding: 10px 14px; border-radius: 0 6px 6px 0;
+      border-left: 3px solid #ef4444; background: #fef2f2; margin-bottom: 8px; font-size: 0.875rem;
+    }
+    .violation-item.medium { border-color: #f59e0b; background: #fffbeb; }
+    .violation-item.low    { border-color: #6366f1; background: #eef2ff; }
+    .viol-text  { font-weight: 600; color: #374151; }
+    .viol-issue { color: #555; margin-top: 3px; }
+    .viol-reg   { font-size: 0.77rem; color: #aaa; margin-top: 3px; font-style: italic; }
+    .sev-tag {
+      display: inline-block; padding: 1px 7px; border-radius: 4px;
+      font-size: 0.68rem; font-weight: 700; text-transform: uppercase; margin-left: 6px;
+    }
+    .sev-high   { background: #fee2e2; color: #991b1b; }
+    .sev-medium { background: #fef3c7; color: #92400e; }
+    .sev-low    { background: #e0e7ff; color: #3730a3; }
+
+    .no-viol { color: #22c55e; font-size: 0.875rem; padding: 6px 0; }
+
+    ul.issue-list { list-style: none; }
+    ul.issue-list li {
+      padding: 6px 0 6px 18px; font-size: 0.875rem; color: #555;
+      border-bottom: 1px solid #f5f5f5; position: relative;
+    }
+    ul.issue-list li:last-child { border-bottom: none; }
+    ul.issue-list li::before { content: "•"; position: absolute; left: 5px; color: #ccc; }
+
+    .corrected-box {
+      background: #f9fafb; border: 1px solid #e5e7eb;
+      border-radius: 6px; padding: 12px 16px; font-size: 0.9rem; color: #374151; line-height: 1.6;
+    }
+
+    .alt-item {
+      background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 6px;
+      padding: 10px 14px; margin-bottom: 8px; font-size: 0.875rem; color: #166534;
+      cursor: pointer; transition: background 0.1s; position: relative;
+    }
+    .alt-item:hover { background: #dcfce7; }
+    .copy-hint { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); font-size: 0.72rem; color: #aaa; }
+
+    .disclaimer-box {
+      background: #f8faff; border: 1.5px dashed #93c5fd;
+      border-radius: 8px; padding: 12px 16px; font-size: 0.825rem; color: #1e40af; line-height: 1.65;
+    }
+
+    /* COMPETITORS */
+    .competitor-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    @media (max-width: 620px) { .competitor-grid { grid-template-columns: 1fr; } }
+
+    .comp-card {
+      border: 1px solid #e5e7eb; border-radius: 10px; padding: 14px;
+      font-size: 0.875rem; transition: box-shadow 0.15s;
+    }
+    .comp-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,.07); }
+    .comp-header { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 8px; }
+
+    .src-badge {
+      padding: 2px 9px; border-radius: 99px; font-size: 0.68rem; font-weight: 700;
+      text-transform: uppercase; flex-shrink: 0; margin-top: 2px;
+    }
+    .src-amazon { background: #fff4e5; color: #c45500; }
+    .src-d2c    { background: #e8f4fd; color: #0f5c8a; }
+    .src-other  { background: #f3f4f6; color: #555; }
+
+    .comp-product { font-weight: 600; color: #1a1a2e; flex: 1; }
+    .comp-url {
+      font-size: 0.75rem; color: #6366f1; word-break: break-all; margin-bottom: 8px;
+      display: block; text-decoration: none;
+    }
+    .comp-url:hover { text-decoration: underline; }
+
+    .comp-claims { list-style: none; }
+    .comp-claims li {
+      padding: 4px 0 4px 15px; color: #555; border-bottom: 1px solid #f3f4f6; position: relative;
+    }
+    .comp-claims li:last-child { border-bottom: none; }
+    .comp-claims li::before { content: "→"; position: absolute; left: 0; color: #aaa; font-size: .8em; }
+
+    .comp-notable {
+      margin-top: 8px; padding: 5px 9px; background: #fafafa;
+      border-radius: 4px; font-size: 0.78rem; color: #888; font-style: italic;
+    }
+
+    .empty-state { text-align: center; padding: 36px 20px; color: #bbb; grid-column: 1/-1; }
+    .empty-state .ei { font-size: 2rem; margin-bottom: 8px; }
+
+    .hidden { display: none; }
+
+    /* streaming thinking indicator */
+    .thinking-dot { display: inline-block; animation: blink 1s infinite; }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.2} }
+
+    /* ── TABS ── */
+    .tab-nav { margin-left: auto; display: flex; gap: 8px; }
+    .tab-btn {
+      padding: 7px 16px;
+      border: 1.5px solid rgba(255,255,255,0.3);
+      background: transparent;
+      color: rgba(255,255,255,0.7);
+      border-radius: 6px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+      white-space: nowrap;
+    }
+    .tab-btn:hover { background: rgba(255,255,255,0.1); color: white; }
+    .tab-btn.active { background: white; color: #0f3460; border-color: white; }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    /* ── RESEARCH PANEL ── */
+    .cat-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+      gap: 7px;
+      margin-bottom: 14px;
+    }
+    .cat-chip {
+      display: flex; align-items: center; gap: 7px;
+      padding: 7px 11px;
+      border: 1.5px solid #e0e4ea; border-radius: 7px;
+      font-size: 0.82rem; cursor: pointer; background: #fafbfc;
+      transition: all 0.12s; user-select: none;
+    }
+    .cat-chip:hover { border-color: #0f3460; background: #f0f4ff; }
+    .cat-chip.selected { border-color: #0f3460; background: #eef2ff; color: #0f3460; font-weight: 600; }
+    .cat-chip input { pointer-events: none; accent-color: #0f3460; }
+
+    .kw-row { display: flex; gap: 8px; margin-top: 10px; }
+    .kw-row input {
+      flex: 1; border: 1.5px solid #e0e4ea; border-radius: 7px;
+      padding: 8px 13px; font-size: 0.88rem; font-family: inherit;
+      outline: none; background: #fafbfc;
+    }
+    .kw-row input:focus { border-color: #0f3460; background: white; }
+
+    .research-stats { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 14px; }
+    .stat-box { background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 8px; padding: 9px 16px; text-align: center; }
+    .stat-num { font-size: 1.35rem; font-weight: 700; color: #0f3460; }
+    .stat-lbl { font-size: 0.72rem; color: #999; text-transform: uppercase; letter-spacing: 0.4px; }
+
+    .res-filters { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; align-items: center; }
+    .res-filters input {
+      flex: 1; min-width: 200px; border: 1.5px solid #e0e4ea;
+      border-radius: 7px; padding: 7px 12px; font-size: 0.85rem;
+      font-family: inherit; outline: none;
+    }
+    .res-filters input:focus { border-color: #0f3460; }
+    .f-badge {
+      padding: 5px 12px; border-radius: 99px; font-size: 0.73rem;
+      font-weight: 600; cursor: pointer; border: 1.5px solid #e0e4ea;
+      background: #fafbfc; transition: all 0.12s;
+    }
+    .f-badge.active { background: #0f3460; color: white; border-color: #0f3460; }
+
+    .claims-table { width: 100%; border-collapse: collapse; font-size: 0.855rem; }
+    .claims-table th {
+      text-align: left; padding: 9px 13px;
+      background: #f8fafc; border-bottom: 2px solid #e5e7eb;
+      font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.5px; color: #777;
+    }
+    .claims-table td { padding: 9px 13px; border-bottom: 1px solid #f0f0f0; vertical-align: top; color: #374151; }
+    .claims-table tr:hover td { background: #f9fafb; }
+
+    .claim-pill { display: inline-block; background: #f3f4f6; border-radius: 4px; padding: 2px 7px; margin: 2px 2px 2px 0; font-size: 0.78rem; }
+    .kw-pill { display: inline-block; background: #e0e7ff; color: #3730a3; border-radius: 99px; padding: 2px 7px; font-size: 0.7rem; font-weight: 600; margin: 2px 2px 2px 0; }
+
+    .prog-item { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-bottom: 1px solid #f3f4f6; font-size: 0.855rem; color: #555; }
+    .prog-item:last-child { border-bottom: none; }
+    .prog-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .dot-pending { background: #d1d5db; }
+    .dot-running { background: #f59e0b; animation: pulse 1s ease-in-out infinite; }
+    .dot-done    { background: #22c55e; }
+    .dot-error   { background: #ef4444; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+    .export-btn {
+      padding: 7px 16px; border: 1.5px solid #0f3460; border-radius: 6px;
+      background: transparent; color: #0f3460; font-size: 0.82rem; font-weight: 600;
+      cursor: pointer; transition: all 0.12s;
+    }
+    .export-btn:hover { background: #0f3460; color: white; }
+  </style>
+</head>
+<body>
+
+<header>
+  <svg width="34" height="34" viewBox="0 0 34 34" fill="none">
+    <rect width="34" height="34" rx="8" fill="rgba(255,255,255,0.12)"/>
+    <path d="M17 7L23 13V21L17 27L11 21V13L17 7Z" stroke="white" stroke-width="1.8" fill="none"/>
+    <circle cx="17" cy="17" r="2.5" fill="white"/>
+    <path d="M17 10V14M17 20V24M10 17H14M20 17H24" stroke="white" stroke-width="1.4" stroke-linecap="round"/>
+  </svg>
+  <div>
+    <h1>Supplement Claim Checker</h1>
+    <p>FDA compliance verification &amp; competitive claim research</p>
+  </div>
+  <nav class="tab-nav">
+    <button class="tab-btn active" id="tabChecker" onclick="switchTab('checker')">Claim Checker</button>
+    <button class="tab-btn" id="tabResearch" onclick="switchTab('research')">Claim Research</button>
+  </nav>
+</header>
+
+<div class="container">
+
+<!-- ===== CHECKER TAB ===== -->
+<div id="panelChecker" class="tab-panel active">
+
+  <!-- API KEY -->
+  <div id="apiKeyBar">
+    <label for="apiKey">Anthropic API Key</label>
+    <input type="password" id="apiKey" placeholder="sk-ant-api03-..." autocomplete="off" />
+    <button class="btn-sm" onclick="saveKey()">Save</button>
+    <span id="apiKeySaved">✓ Saved</span>
+  </div>
+
+  <!-- INPUT FORM -->
+  <div class="card">
+    <div class="card-title">Enter Marketing Statement / Claim</div>
+    <div>
+      <textarea id="statement" placeholder='e.g. "Our advanced formula cures fatigue and prevents heart disease while boosting your immune system naturally..."' maxlength="2000"></textarea>
+      <div class="char-count"><span id="charCount">0</span> / 2000</div>
+    </div>
+    <button class="btn-primary" id="analyzeBtn" onclick="runAnalysis()">
+      <svg width="15" height="15" viewBox="0 0 15 15" fill="currentColor">
+        <path d="M7.5 1a6.5 6.5 0 100 13A6.5 6.5 0 007.5 1zm0 1.2a5.3 5.3 0 110 10.6A5.3 5.3 0 017.5 2.2zM7 4.5v4l3 1.5.4-.8L8 8.1V4.5H7z"/>
+      </svg>
+      Analyze Statement
+    </button>
+  </div>
+
+  <!-- STATUS -->
+  <div id="statusBar">
+    <div class="spinner"></div>
+    <span id="statusMsg">Processing...</span>
+  </div>
+
+  <!-- COMPLIANCE -->
+  <div id="complianceResult" class="card hidden">
+    <div class="card-title">Compliance Analysis</div>
+    <div id="statusBanner" class="status-banner"></div>
+
+    <div class="section">
+      <div class="section-title">Summary</div>
+      <p id="summaryText" class="summary-text"></p>
+    </div>
+
+    <div class="section">
+      <div class="section-title">FDA Violations</div>
+      <div id="violationsList"></div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Grammar &amp; Writing</div>
+      <div id="grammarContent"></div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Compliant Alternatives <span style="font-weight:400;text-transform:none;font-size:0.8em;color:#aaa">(click to copy)</span></div>
+      <div id="alternativesList"></div>
+    </div>
+
+    <div id="disclaimerSection" class="section hidden">
+      <div class="section-title">Required FDA Disclaimer</div>
+      <div class="disclaimer-box" id="disclaimerText"></div>
+    </div>
+  </div>
+
+  <!-- COMPETITORS -->
+  <div id="competitorResult" class="card hidden">
+    <div class="card-title">Similar Claims Found on Amazon &amp; D2C Sites</div>
+    <div id="competitorGrid" class="competitor-grid"></div>
+  </div>
+
+</div><!-- end panelChecker -->
+
+<!-- ===== RESEARCH TAB ===== -->
+<div id="panelResearch" class="tab-panel">
+
+  <!-- API KEY (shared reference) -->
+  <div style="padding:10px 14px;background:#fffbeb;border:1.5px solid #fbbf24;border-radius:8px;margin-bottom:16px;font-size:0.82rem;color:#92400e;">
+    Uses the same Anthropic API key entered above. Switch to Claim Checker tab to update it.
+  </div>
+
+  <!-- SEARCH INPUT -->
+  <div class="card">
+    <div class="card-title">Search for Health Claims</div>
+    <div class="kw-row">
+      <input type="text" id="customKeyword" placeholder="e.g. ashwagandha, berberine, NAD+, lion's mane…" />
+      <button class="btn-primary" style="margin-top:0;padding:8px 16px;" onclick="addCustomKw()">Add</button>
+    </div>
+    <div id="customChips" style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px;"></div>
+
+    <div style="display:flex;gap:10px;margin-top:16px;align-items:center;flex-wrap:wrap;">
+      <button class="btn-primary" id="researchBtn" onclick="runResearch()" style="margin-top:0;">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><path d="M10.34 9.12a5.5 5.5 0 10-1.22 1.22l3.18 3.18 1.22-1.22-3.18-3.18zm-4.84.88a4 4 0 110-8 4 4 0 010 8z"/></svg>
+        Search Claims
+      </button>
+      <button onclick="clearResearch()" style="padding:10px 18px;border:1.5px solid #e0e4ea;background:#fafbfc;border-radius:7px;font-size:0.88rem;font-weight:600;cursor:pointer;">Clear</button>
+      <span id="selCount" style="font-size:0.83rem;color:#999;">0 keywords</span>
+    </div>
+  </div>
+
+  <!-- PROGRESS -->
+  <div id="researchProgress" class="card hidden">
+    <div class="card-title" id="progressTitle">Searching…</div>
+    <div id="progressList"></div>
+  </div>
+
+  <!-- RESULTS -->
+  <div id="researchResults" class="card hidden">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
+      <div class="card-title" style="margin:0;">Claims Found</div>
+      <div style="display:flex;gap:8px;">
+        <button class="export-btn" onclick="exportCSV()">Export CSV</button>
+        <button class="export-btn" onclick="exportJSON()">Export JSON</button>
+      </div>
+    </div>
+    <div class="research-stats" id="researchStats"></div>
+    <div class="res-filters">
+      <input type="text" id="claimFilter" placeholder="Filter by keyword, product, or claim text…" oninput="filterTable()" />
+      <button class="f-badge active" id="fAll" onclick="setSrcFilter('all')">All</button>
+      <button class="f-badge" id="fAmazon" onclick="setSrcFilter('amazon')">Amazon</button>
+      <button class="f-badge" id="fD2C" onclick="setSrcFilter('d2c')">D2C</button>
+    </div>
+    <div style="overflow-x:auto;">
+      <table class="claims-table" id="claimsTable">
+        <thead>
+          <tr>
+            <th>Source</th><th>Category</th><th>Product / Brand</th>
+            <th>Health Claims</th><th>Keywords</th><th>Notable Language</th>
+          </tr>
+        </thead>
+        <tbody id="claimsBody"></tbody>
+      </table>
+    </div>
+    <div id="noResMsg" class="empty-state hidden"><div class="ei">🔍</div>No results match your filter.</div>
+  </div>
+
+</div><!-- end panelResearch -->
+
+</div><!-- end container -->
+
+<script>
+// ─── API KEY ──────────────────────────────────────────────────────────────────
+const KEY_STORAGE = 'scc_anthropic_key';
+
+window.addEventListener('DOMContentLoaded', () => {
+  const saved = localStorage.getItem(KEY_STORAGE);
+  if (saved) {
+    document.getElementById('apiKey').value = saved;
+    document.getElementById('apiKeySaved').style.display = 'inline';
+  }
+  document.getElementById('statement').addEventListener('input', e => {
+    document.getElementById('charCount').textContent = e.target.value.length;
+  });
+});
+
+function saveKey() {
+  const k = document.getElementById('apiKey').value.trim();
+  if (k) {
+    localStorage.setItem(KEY_STORAGE, k);
+    document.getElementById('apiKeySaved').style.display = 'inline';
+    setTimeout(() => document.getElementById('apiKeySaved').style.display = 'none', 2000);
+  }
+}
+
+function getKey() { return document.getElementById('apiKey').value.trim(); }
+
+// ─── FDA SYSTEM PROMPT ───────────────────────────────────────────────────────
+const FDA_SYSTEM = `You are an expert FDA regulatory consultant specializing in dietary supplement marketing compliance.
+
+## Regulatory Framework
+
+### Permitted Claims
+**Structure/Function Claims (21 CFR 101.93)** — allowed WITH disclaimer:
+- Describe how a nutrient affects normal body structure or function
+- Examples: "Calcium builds strong bones", "Vitamin C supports immune function"
+- REQUIRED disclaimer: "This statement has not been evaluated by the Food and Drug Administration. This product is not intended to diagnose, treat, cure, or prevent any disease."
+
+**Nutrient Content Claims (21 CFR 101.13):**
+- "High in Vitamin C", "Good source of calcium"
+
+### PROHIBITED Claims
+**Disease Claims (21 USC 343(r)(6)):**
+- Prohibited verbs in disease context: "cures", "treats", "prevents", "diagnoses", "mitigates"
+- Disease-specific language: "for cancer", "for diabetes", "for Alzheimer's", "for arthritis"
+- Implied disease: "normalizes blood sugar" (implies diabetes treatment)
+
+**False/Misleading Claims (21 CFR 101.18 & FTC Act):**
+- Absolute efficacy: "guaranteed results", "100% effective"
+- Unsubstantiated superlatives: "most powerful", "#1 most effective" (without basis)
+
+### FTC Substantiation
+- Claims require competent, reliable scientific evidence
+- "Clinically proven" requires actual clinical evidence
+
+## Output Format
+Return ONLY valid JSON with no markdown code fences.`;
+
+// ─── ANALYSIS ────────────────────────────────────────────────────────────────
+async function runAnalysis() {
+  const apiKey  = getKey();
+  const statement = document.getElementById('statement').value.trim();
+
+  if (!apiKey)   { alert('Please enter your Anthropic API key.'); return; }
+  if (!statement){ alert('Please enter a marketing statement.'); return; }
+
+  document.getElementById('analyzeBtn').disabled = true;
+  document.getElementById('complianceResult').classList.add('hidden');
+  document.getElementById('competitorResult').classList.add('hidden');
+  showStatus('Analyzing FDA compliance and grammar…');
+
+  try {
+    // Step 1: FDA + grammar compliance
+    const compliance = await analyzeCompliance(apiKey, statement);
+    renderCompliance(compliance);
+
+    // Step 2: Competitor research
+    showStatus('Searching Amazon and D2C sites for similar claims…');
+    const competitors = await searchCompetitors(apiKey, statement);
+    renderCompetitors(competitors);
+
+    hideStatus();
+  } catch (err) {
+    showStatus('Error: ' + err.message, true);
+    console.error(err);
+  } finally {
+    document.getElementById('analyzeBtn').disabled = false;
+  }
+}
+
+// ─── COMPLIANCE CHECK (streaming for UX, collect full response) ───────────────
+async function analyzeCompliance(apiKey, statement) {
+  const prompt = `Analyze this dietary supplement marketing statement for grammar quality and FDA regulatory compliance.
+
+**Marketing Statement:** "${statement}"
+
+Return ONLY a JSON object with this exact structure (no markdown fences):
+{
+  "grammar": {
+    "issues": ["list each grammar/style issue in English, or empty array if none"],
+    "corrected": "grammatically improved version in English",
+    "quality": "good" or "fair" or "poor"
+  },
+  "compliance": {
+    "status": "compliant" or "non_compliant" or "needs_review",
+    "risk_level": "low" or "medium" or "high",
+    "claim_type": "structure_function" or "nutrient_content" or "disease_claim" or "unclear",
+    "violations": [
+      {
+        "text": "exact problematic text from the statement",
+        "issue": "plain-English explanation",
+        "regulation": "specific regulation reference",
+        "severity": "low" or "medium" or "high"
+      }
+    ]
+  },
+  "disclaimer": {
+    "required": true or false,
+    "text": "This statement has not been evaluated by the Food and Drug Administration. This product is not intended to diagnose, treat, cure, or prevent any disease."
+  },
+  "alternatives": [
+    "Compliant rewrite option 1",
+    "Compliant rewrite option 2",
+    "Compliant rewrite option 3"
+  ],
+  "summary": "2-3 sentence plain-English explanation of findings",
+  "korean": {
+    "summary": "",
+    "grammar_issues": [],
+    "grammar_corrected": "",
+    "violations": [],
+    "alternatives": []
+  }
+}
+
+After completing the JSON above, fill in the "korean" object with actual Korean-language translations (한국어):
+- korean.summary → translate the summary value to Korean
+- korean.grammar_issues → translate each item in grammar.issues to Korean (keep same array length)
+- korean.grammar_corrected → translate grammar.corrected to Korean
+- korean.violations → for each item in compliance.violations, add {"issue": "<Korean translation of that violation's issue>"}
+- korean.alternatives → translate each item in alternatives to Korean
+
+The korean object must contain real Korean text (한국어), not English descriptions.`;
+
+  const resp = await callAnthropic(apiKey, {
+    model: 'claude-opus-4-6',
+    max_tokens: 8192,
+    system: FDA_SYSTEM,
+    messages: [{ role: 'user', content: prompt }]
+  });
+
+  const textBlock = resp.content.find(b => b.type === 'text');
+  let text = (textBlock?.text || '{}').trim();
+  text = text.replace(/^```(?:json)?\s*/m, '').replace(/\s*```\s*$/m, '');
+
+  try { return JSON.parse(text); } catch {
+    const m = text.match(/\{[\s\S]*\}/);
+    if (m) try { return JSON.parse(m[0]); } catch {}
+    return {
+      summary: text,
+      compliance: { status: 'needs_review', risk_level: 'medium', violations: [], claim_type: 'unclear' },
+      grammar: { issues: [], quality: 'unknown', corrected: '' },
+      disclaimer: { required: true, text: 'This statement has not been evaluated by the Food and Drug Administration. This product is not intended to diagnose, treat, cure, or prevent any disease.' },
+      alternatives: []
+    };
+  }
+}
+
+// ─── COMPETITOR SEARCH (tool use loop) ───────────────────────────────────────
+async function searchCompetitors(apiKey, statement) {
+  const SYSTEM = 'You are a market research analyst for dietary supplements with deep knowledge of how brands market products on Amazon and D2C websites.';
+  const userMsg = `Based on this supplement marketing statement: "${statement}"\n\nList realistic marketing claims that similar supplement brands commonly use on Amazon and D2C websites. Use real-sounding brand names.\n\nFor the "url" field: if source is "Amazon", provide a real Amazon search URL like https://www.amazon.com/s?k=brand+name+supplement (URL-encode the brand name). If source is "D2C", provide a plausible brand website URL like https://www.brandname.com.\n\nReturn ONLY a JSON array (no markdown fences):\n[{"source":"Amazon" or "D2C","product":"brand name","url":"https://...","claims":["claim 1","claim 2","claim 3"],"notable_language":"standout marketing language"}]\n\nReturn 4-6 entries.`;
+
+  const resp = await callAnthropic(apiKey, {
+    model: 'claude-opus-4-6',
+    max_tokens: 2048,
+    system: SYSTEM,
+    messages: [{ role: 'user', content: userMsg }]
+  });
+
+  const textBlock = resp.content.find(b => b.type === 'text');
+  let text = (textBlock?.text || '[]').trim().replace(/^```(?:json)?\s*/m,'').replace(/\s*```\s*$/m,'');
+  try {
+    const m = text.match(/\[[\s\S]*\]/);
+    if (m) return JSON.parse(m[0]);
+    return JSON.parse(text);
+  } catch { return []; }
+}
+
+// ─── ANTHROPIC API CALL ───────────────────────────────────────────────────────
+async function callAnthropic(apiKey, body) {
+  const resp = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-allow-browser': 'true',
+      'content-type': 'application/json'
+    },
+    body: JSON.stringify(body)
+  });
+
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}));
+    throw new Error(err.error?.message || `API error ${resp.status}`);
+  }
+
+  return resp.json();
+}
+
+// ─── RENDER COMPLIANCE ────────────────────────────────────────────────────────
+function renderCompliance(data) {
+  const statusInfo = {
+    compliant:     { icon: '✅', label: 'Compliant',     sub: 'This statement appears to meet FDA dietary supplement marketing requirements.' },
+    non_compliant: { icon: '🚫', label: 'Non-Compliant', sub: 'This statement contains claims that likely violate FDA regulations.' },
+    needs_review:  { icon: '⚠️', label: 'Needs Review',  sub: 'This statement has elements that require legal review before use.' }
+  };
+
+  const c = data.compliance || {};
+  const g = data.grammar || {};
+  const ko = data.korean || {};
+  const status = c.status || 'needs_review';
+  const risk   = c.risk_level || 'medium';
+  const info   = statusInfo[status] || statusInfo.needs_review;
+
+  const koLabel = s => `<span style="font-size:0.78rem;color:#888;font-style:italic;">${esc(s)}</span>`;
+
+  // Banner
+  const banner = document.getElementById('statusBanner');
+  banner.className = `status-banner ${status}`;
+  banner.innerHTML = `
+    <span class="status-icon">${info.icon}</span>
+    <div>
+      <div class="status-label">${info.label}</div>
+      <div class="status-sub">${info.sub}</div>
+    </div>
+    <span class="risk-badge risk-${risk}">Risk: ${risk}</span>
+  `;
+
+  // Summary
+  const summaryEl = document.getElementById('summaryText');
+  summaryEl.innerHTML = esc(data.summary || '') +
+    (ko.summary ? `<br><br>${koLabel(ko.summary)}` : '');
+
+  // Violations
+  const violations = c.violations || [];
+  const koViols = ko.violations || [];
+  const vEl = document.getElementById('violationsList');
+  if (violations.length === 0) {
+    vEl.innerHTML = '<p class="no-viol">✓ No explicit FDA violations detected. / FDA 위반 사항이 감지되지 않았습니다.</p>';
+  } else {
+    vEl.innerHTML = violations.map((v, i) => `
+      <div class="violation-item ${v.severity || 'high'}">
+        <div class="viol-text">"${esc(v.text || '')}" <span class="sev-tag sev-${v.severity || 'high'}">${v.severity || 'high'}</span></div>
+        <div class="viol-issue">${esc(v.issue || '')}</div>
+        ${koViols[i]?.issue ? `<div class="viol-issue" style="color:#888;font-style:italic;font-size:0.82rem;">${esc(koViols[i].issue)}</div>` : ''}
+        <div class="viol-reg">${esc(v.regulation || '')}</div>
+      </div>
+    `).join('');
+  }
+
+  // Grammar
+  const issues = g.issues || [];
+  const koIssues = ko.grammar_issues || [];
+  const gEl = document.getElementById('grammarContent');
+  let gHtml = '';
+  if (issues.length === 0) {
+    gHtml += '<p style="color:#22c55e;font-size:.875rem;margin-bottom:8px">✓ No grammar issues found. / 문법 문제가 없습니다.</p>';
+  } else {
+    gHtml += `<ul class="issue-list">`;
+    issues.forEach((item, i) => {
+      gHtml += `<li>${esc(item)}${koIssues[i] ? ` <span style="color:#aaa;font-style:italic;">/ ${esc(koIssues[i])}</span>` : ''}</li>`;
+    });
+    gHtml += `</ul>`;
+  }
+  const corrected = g.corrected;
+  if (corrected) {
+    gHtml += `<div style="font-size:.75rem;color:#999;margin:10px 0 4px;font-weight:600">CORRECTED VERSION</div><div class="corrected-box">${esc(corrected)}`;
+    if (ko.grammar_corrected) gHtml += `<br><br>${koLabel(ko.grammar_corrected)}`;
+    gHtml += `</div>`;
+  }
+  gEl.innerHTML = gHtml;
+
+  // Alternatives
+  const alts = data.alternatives || [];
+  const koAlts = ko.alternatives || [];
+  const altEl = document.getElementById('alternativesList');
+  if (alts.length === 0) {
+    altEl.innerHTML = '<p style="font-size:.875rem;color:#aaa">No alternatives generated.</p>';
+  } else {
+    altEl.innerHTML = alts.map((a, i) => `
+      <div class="alt-item" onclick="copyAlt(this, ${JSON.stringify(a)})">
+        <span>${i + 1}. ${esc(a)}</span>
+        ${koAlts[i] ? `<div style="font-size:0.8rem;color:#4ade80;margin-top:4px;font-style:italic;">${esc(koAlts[i])}</div>` : ''}
+        <span class="copy-hint">click to copy</span>
+      </div>
+    `).join('');
+  }
+
+  // Disclaimer
+  const disc = data.disclaimer || {};
+  const discSec = document.getElementById('disclaimerSection');
+  if (disc.required) {
+    discSec.classList.remove('hidden');
+    document.getElementById('disclaimerText').textContent = disc.text || '';
+  } else {
+    discSec.classList.add('hidden');
+  }
+
+  document.getElementById('complianceResult').classList.remove('hidden');
+  document.getElementById('complianceResult').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// ─── RENDER COMPETITORS ───────────────────────────────────────────────────────
+function renderCompetitors(list) {
+  const grid = document.getElementById('competitorGrid');
+  if (!list || list.length === 0) {
+    grid.innerHTML = `<div class="empty-state"><div class="ei">🔍</div>No competitor claims could be retrieved for this search.</div>`;
+  } else {
+    grid.innerHTML = list.map(c => {
+      const srcClass = (c.source || '').toLowerCase() === 'amazon' ? 'src-amazon'
+                     : (c.source || '').toLowerCase() === 'd2c' ? 'src-d2c' : 'src-other';
+      const claims = Array.isArray(c.claims) ? c.claims : [];
+      return `
+        <div class="comp-card">
+          <div class="comp-header">
+            <span class="src-badge ${srcClass}">${esc(c.source || 'Web')}</span>
+            <span class="comp-product">${esc(c.product || 'Unknown')}</span>
+          </div>
+          ${c.url ? `<a class="comp-url" href="${escAttr(c.url)}" target="_blank" rel="noopener noreferrer">${esc(trunc(c.url, 55))}</a>` : ''}
+          <ul class="comp-claims">
+            ${claims.map(cl => `<li>${esc(cl)}</li>`).join('') || '<li style="color:#bbb">No claims extracted</li>'}
+          </ul>
+          ${c.notable_language ? `<div class="comp-notable">"${esc(c.notable_language)}"</div>` : ''}
+        </div>
+      `;
+    }).join('');
+  }
+  document.getElementById('competitorResult').classList.remove('hidden');
+}
+
+// ─── HELPERS ──────────────────────────────────────────────────────────────────
+function showStatus(msg, isError) {
+  const bar = document.getElementById('statusBar');
+  document.getElementById('statusMsg').textContent = msg;
+  bar.style.display = 'flex';
+  bar.style.background = isError ? '#fef2f2' : '#f0f4ff';
+  bar.style.borderColor = isError ? '#fca5a5' : '#c7d7ff';
+  bar.style.color = isError ? '#b91c1c' : '#0f3460';
+}
+function hideStatus() { document.getElementById('statusBar').style.display = 'none'; }
+
+function copyAlt(el, text) {
+  navigator.clipboard.writeText(text).then(() => {
+    const orig = el.innerHTML;
+    el.innerHTML = '<span>✓ Copied!</span>';
+    setTimeout(() => { el.innerHTML = orig; }, 1500);
+  });
+}
+
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function escAttr(s) { return String(s).replace(/"/g,'&quot;'); }
+function trunc(s, n) { return s.length > n ? s.slice(0, n) + '…' : s; }
+
+// ─── TAB SWITCHING ────────────────────────────────────────────────────────────
+function switchTab(tab) {
+  document.getElementById('panelChecker').classList.toggle('active', tab === 'checker');
+  document.getElementById('panelResearch').classList.toggle('active', tab === 'research');
+  document.getElementById('tabChecker').classList.toggle('active', tab === 'checker');
+  document.getElementById('tabResearch').classList.toggle('active', tab === 'research');
+}
+
+// ─── RESEARCH TAB ─────────────────────────────────────────────────────────────
+const customKws = [];
+let allClaimsData = [];
+let activeSrcFilter = 'all';
+
+function updateSelCount() {
+  document.getElementById('selCount').textContent = `${customKws.length} keyword${customKws.length !== 1 ? 's' : ''}`;
+}
+
+function addCustomKw() {
+  const input = document.getElementById('customKeyword');
+  const val = input.value.trim();
+  if (!val) return;
+  val.split(',').map(v => v.trim()).filter(Boolean).forEach(kw => {
+    if (!customKws.includes(kw)) { customKws.push(kw); }
+  });
+  input.value = '';
+  renderCustomChips();
+  updateSelCount();
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('customKeyword').addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); addCustomKw(); }
+  });
+});
+
+function removeCustomKw(kw) {
+  const idx = customKws.indexOf(kw);
+  if (idx >= 0) customKws.splice(idx, 1);
+  renderCustomChips();
+  updateSelCount();
+}
+
+function renderCustomChips() {
+  document.getElementById('customChips').innerHTML = customKws.map(kw =>
+    `<span style="display:inline-flex;align-items:center;gap:5px;background:#e0e7ff;color:#3730a3;border-radius:99px;padding:3px 10px;font-size:0.8rem;font-weight:600;">
+      ${esc(kw)} <span onclick="removeCustomKw('${escAttr(kw)}')" style="cursor:pointer;font-size:1rem;line-height:1;">&times;</span>
+    </span>`
+  ).join('');
+}
+
+function clearResearch() {
+  customKws.length = 0;
+  renderCustomChips();
+  updateSelCount();
+  document.getElementById('researchProgress').classList.add('hidden');
+  document.getElementById('researchResults').classList.add('hidden');
+  allClaimsData = [];
+}
+
+async function runResearch() {
+  const apiKey = getKey();
+  if (!apiKey) { alert('Please enter your Anthropic API key in the Claim Checker tab first.'); switchTab('checker'); return; }
+  const queries = [...customKws];
+  if (queries.length === 0) { alert('Select at least one category or enter a keyword.'); return; }
+
+  allClaimsData = [];
+  document.getElementById('researchBtn').disabled = true;
+  document.getElementById('researchResults').classList.add('hidden');
+
+  const progressEl = document.getElementById('researchProgress');
+  const progressList = document.getElementById('progressList');
+  progressEl.classList.remove('hidden');
+  document.getElementById('progressTitle').textContent = 'Searching…';
+
+  const dotIds = {};
+  progressList.innerHTML = queries.map(q => {
+    const id = 'p_' + btoa(unescape(encodeURIComponent(q))).replace(/[^a-z0-9]/gi,'').slice(0,14);
+    dotIds[q] = id;
+    return `<div class="prog-item" id="${id}"><div class="prog-dot dot-pending"></div><span>${esc(q)}</span></div>`;
+  }).join('');
+
+  for (let i = 0; i < queries.length; i++) {
+    const q = queries[i];
+    markProg(dotIds[q], 'running');
+    document.getElementById('progressTitle').textContent = `Searching: ${q}…`;
+    try {
+      const results = await researchClaims(apiKey, q);
+      allClaimsData.push(...results);
+      markProg(dotIds[q], 'done', `${results.length} products`);
+    } catch (e) {
+      markProg(dotIds[q], 'error', e.message);
+      console.error('Research error for', q, e);
+    }
+  }
+
+  document.getElementById('progressTitle').textContent = `Done — ${allClaimsData.length} products found`;
+  renderResearchResults(allClaimsData);
+  document.getElementById('researchBtn').disabled = false;
+}
+
+function markProg(id, state, msg) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.querySelector('.prog-dot').className = `prog-dot dot-${state}`;
+  if (msg) {
+    let note = el.querySelector('.prog-note');
+    if (!note) {
+      note = document.createElement('span');
+      note.className = 'prog-note';
+      note.style.cssText = 'font-size:0.78rem;margin-left:4px;';
+      el.appendChild(note);
+    }
+    note.style.color = state === 'error' ? '#ef4444' : '#22c55e';
+    note.textContent = msg;
+  }
+}
+
+async function researchClaims(apiKey, query) {
+  const SYSTEM = 'You are a dietary supplement market research analyst with deep knowledge of how supplement brands market their products on Amazon and D2C websites. Provide realistic, representative marketing claims based on common industry patterns.';
+  const userMsg =
+    `List realistic health and benefit claims that supplement brands commonly use to market "${query}" products on Amazon and D2C websites.\n\n` +
+    `Include a mix of Amazon sellers and D2C supplement brands. Use real-sounding brand names and typical marketing language.\n\n` +
+    `Return ONLY a JSON array (no markdown fences, no explanation):\n` +
+    `[{"source":"Amazon" or "D2C","product":"brand name","url":"https://...","category":"${query}","claims":["typical claim 1","typical claim 2","typical claim 3"],"keywords":["health theme 1","health theme 2"],"notable_language":"most aggressive or notable marketing phrase used"}]\n\n` +
+    `For the "url" field: if source is "Amazon", provide a real Amazon search URL like https://www.amazon.com/s?k=brand+name+supplement (URL-encode the brand name). If source is "D2C", provide a plausible brand website URL like https://www.brandname.com. Always populate the url field.\n\n` +
+    `Return 6-10 entries covering a mix of Amazon and D2C brands.`;
+
+  const resp = await callAnthropic(apiKey, {
+    model: 'claude-opus-4-6',
+    max_tokens: 4096,
+    system: SYSTEM,
+    messages: [{ role: 'user', content: userMsg }]
+  });
+
+  const textBlock = resp.content.find(b => b.type === 'text');
+  let text = (textBlock?.text || '[]').trim().replace(/^```(?:json)?\s*/m,'').replace(/\s*```\s*$/m,'');
+  try {
+    const m = text.match(/\[[\s\S]*\]/);
+    if (m) return JSON.parse(m[0]);
+    return JSON.parse(text);
+  } catch { return []; }
+}
+
+function renderResearchResults(data) {
+  const statsEl = document.getElementById('researchStats');
+  const totalClaims = data.reduce((s, r) => s + (r.claims||[]).length, 0);
+  const amazonN = data.filter(r => (r.source||'').toLowerCase() === 'amazon').length;
+  const d2cN = data.filter(r => (r.source||'').toLowerCase() === 'd2c').length;
+  const cats = new Set(data.map(r => r.category).filter(Boolean));
+  statsEl.innerHTML = `
+    <div class="stat-box"><div class="stat-num">${data.length}</div><div class="stat-lbl">Products</div></div>
+    <div class="stat-box"><div class="stat-num">${totalClaims}</div><div class="stat-lbl">Claims</div></div>
+    <div class="stat-box"><div class="stat-num">${amazonN}</div><div class="stat-lbl">Amazon</div></div>
+    <div class="stat-box"><div class="stat-num">${d2cN}</div><div class="stat-lbl">D2C Brands</div></div>
+    <div class="stat-box"><div class="stat-num">${cats.size}</div><div class="stat-lbl">Categories</div></div>
+  `;
+
+  const tbody = document.getElementById('claimsBody');
+  tbody.innerHTML = data.map((r, i) => {
+    const src = r.source || 'Web';
+    const srcClass = src.toLowerCase() === 'amazon' ? 'src-amazon' : src.toLowerCase() === 'd2c' ? 'src-d2c' : 'src-other';
+    const claims = (r.claims||[]).map(c => `<span class="claim-pill">${esc(c)}</span>`).join('');
+    const kws = (r.keywords||[]).map(k => `<span class="kw-pill">${esc(k)}</span>`).join('');
+    const prod = r.url
+      ? `<a href="${escAttr(r.url)}" target="_blank" rel="noopener noreferrer" style="color:#6366f1;text-decoration:none;">${esc(r.product||'Unknown')}</a>`
+      : esc(r.product||'Unknown');
+    return `<tr data-src="${escAttr(src.toLowerCase())}">
+      <td><span class="src-badge ${srcClass}">${esc(src)}</span></td>
+      <td style="white-space:nowrap;color:#666;">${esc(r.category||'')}</td>
+      <td>${prod}</td>
+      <td>${claims||'<span style="color:#bbb">—</span>'}</td>
+      <td>${kws||'<span style="color:#bbb">—</span>'}</td>
+      <td style="font-style:italic;color:#888;font-size:0.8rem;">${esc(r.notable_language||'')}</td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('researchResults').classList.remove('hidden');
+  document.getElementById('researchResults').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function filterTable() {
+  const q = document.getElementById('claimFilter').value.toLowerCase();
+  const rows = document.querySelectorAll('#claimsBody tr');
+  let visible = 0;
+  rows.forEach(row => {
+    const srcOk = activeSrcFilter === 'all' || (row.dataset.src || '') === activeSrcFilter;
+    const textOk = !q || row.textContent.toLowerCase().includes(q);
+    const show = srcOk && textOk;
+    row.style.display = show ? '' : 'none';
+    if (show) visible++;
+  });
+  document.getElementById('noResMsg').classList.toggle('hidden', visible > 0);
+  document.getElementById('claimsTable').style.display = visible === 0 ? 'none' : '';
+}
+
+function setSrcFilter(f) {
+  activeSrcFilter = f;
+  document.getElementById('fAll').classList.toggle('active', f === 'all');
+  document.getElementById('fAmazon').classList.toggle('active', f === 'amazon');
+  document.getElementById('fD2C').classList.toggle('active', f === 'd2c');
+  filterTable();
+}
+
+function exportCSV() {
+  const rows = [['Source','Category','Product','URL','Claims','Keywords','Notable Language']];
+  allClaimsData.forEach(r => {
+    rows.push([r.source||'',r.category||'',r.product||'',r.url||'',(r.claims||[]).join(' | '),(r.keywords||[]).join(', '),r.notable_language||'']);
+  });
+  const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
+  dlFile('supplement_claims.csv','text/csv', csv);
+}
+
+function exportJSON() {
+  dlFile('supplement_claims.json','application/json', JSON.stringify(allClaimsData, null, 2));
+}
+
+function dlFile(name, mime, content) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([content], { type: mime }));
+  a.download = name;
+  a.click();
+}
+</script>
+</body>
+</html>

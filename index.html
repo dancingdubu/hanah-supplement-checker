@@ -719,7 +719,7 @@ Return ONLY a JSON object with this exact structure (no markdown fences):
 }`;
 
   const resp = await callAnthropic(apiKey, {
-    model: 'claude-opus-4-5',
+    model: 'claude-opus-4-6',
     max_tokens: 4096,
     system: FDA_SYSTEM,
     messages: [{ role: 'user', content: prompt }]
@@ -767,7 +767,7 @@ Replace every placeholder with the actual Korean translation. All values must be
 
   try {
     const resp = await callAnthropic(apiKey, {
-      model: 'claude-opus-4-5',
+      model: 'claude-opus-4-6',
       max_tokens: 2048,
       messages: [{ role: 'user', content: prompt }]
     });
@@ -839,7 +839,7 @@ async function searchCompetitors(apiKey, statement) {
   const userMsg = `Based on this supplement marketing statement: "${statement}"\n\nList realistic marketing claims that similar supplement brands commonly use on Amazon and D2C websites. Use real-sounding brand names.\n\nFor the "url" field: if source is "Amazon", provide a real Amazon search URL like https://www.amazon.com/s?k=brand+name+supplement (URL-encode the brand name). If source is "D2C", provide a plausible brand website URL like https://www.brandname.com.\n\nReturn ONLY a JSON array (no markdown fences):\n[{"source":"Amazon" or "D2C","product":"brand name","url":"https://...","claims":["claim 1","claim 2","claim 3"],"notable_language":"standout marketing language"}]\n\nReturn 4-6 entries.`;
 
   const resp = await callAnthropic(apiKey, {
-    model: 'claude-opus-4-5',
+    model: 'claude-opus-4-6',
     max_tokens: 2048,
     system: SYSTEM,
     messages: [{ role: 'user', content: userMsg }]
@@ -1159,7 +1159,7 @@ async function researchClaims(apiKey, query) {
     `Return 6-10 entries covering a mix of Amazon and D2C brands.`;
 
   const resp = await callAnthropic(apiKey, {
-    model: 'claude-opus-4-5',
+    model: 'claude-opus-4-6',
     max_tokens: 4096,
     system: SYSTEM,
     messages: [{ role: 'user', content: userMsg }]
@@ -1363,7 +1363,7 @@ Return ONLY a JSON object (no markdown fences):
 }`;
 
     const resp = await callAnthropic(apiKey, {
-      model: 'claude-opus-4-5',
+      model: 'claude-opus-4-6',
       max_tokens: 4096,
       system: LABEL_SYSTEM,
       messages: [{ role: 'user', content: [
@@ -1481,7 +1481,7 @@ Source text to translate:
 Replace every "<Korean>" with the actual Korean translation. All values must be real Korean text (한국어).`;
 
   try {
-    const resp = await callAnthropic(apiKey, { model: 'claude-opus-4-5', max_tokens: 2048, messages: [{ role: 'user', content: prompt }] });
+    const resp = await callAnthropic(apiKey, { model: 'claude-opus-4-6', max_tokens: 2048, messages: [{ role: 'user', content: prompt }] });
     const textBlock = resp.content.find(b => b.type === 'text');
     let text = (textBlock?.text || '{}').trim().replace(/^```(?:json)?\s*/m,'').replace(/\s*```\s*$/m,'');
     try { return JSON.parse(text); } catch { const m = text.match(/\{[\s\S]*\}/); return m ? JSON.parse(m[0]) : {}; }

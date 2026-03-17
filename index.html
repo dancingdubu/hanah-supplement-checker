@@ -657,11 +657,16 @@ async function runAnalysis() {
   showStatus('Analyzing FDA compliance and grammar…');
 
   try {
-    // Step 1: FDA + grammar compliance
+    // Step 1: FDA + grammar compliance (English)
     const compliance = await analyzeCompliance(apiKey, statement);
     renderCompliance(compliance);
 
-    // Step 2: Competitor research
+    // Step 2: Korean translation (separate short call)
+    showStatus('Translating analysis to Korean…');
+    const korean = await translateComplianceKorean(apiKey, compliance);
+    renderComplianceKorean(korean, compliance);
+
+    // Step 3: Competitor research
     showStatus('Searching Amazon and D2C sites for similar claims…');
     const competitors = await searchCompetitors(apiKey, statement);
     renderCompetitors(competitors);
@@ -710,27 +715,11 @@ Return ONLY a JSON object with this exact structure (no markdown fences):
     "Compliant rewrite option 2",
     "Compliant rewrite option 3"
   ],
-  "summary": "2-3 sentence plain-English explanation of findings",
-  "korean": {
-    "summary": "",
-    "grammar_issues": [],
-    "grammar_corrected": "",
-    "violations": [],
-    "alternatives": []
-  }
-}
-
-After completing the JSON above, fill in the "korean" object with actual Korean-language translations (한국어):
-- korean.summary → translate the summary value to Korean
-- korean.grammar_issues → translate each item in grammar.issues to Korean (keep same array length)
-- korean.grammar_corrected → translate grammar.corrected to Korean
-- korean.violations → for each item in compliance.violations, add {"issue": "<Korean translation of that violation's issue>"}
-- korean.alternatives → translate each item in alternatives to Korean
-
-The korean object must contain real Korean text (한국어), not English descriptions.`;
+  "summary": "2-3 sentence plain-English explanation of findings"
+}`;
 
   const resp = await callAnthropic(apiKey, {
-    model: 'claude-3-5-sonnet-20241022',
+    model: 'claude-opus-4-5',
     max_tokens: 4096,
     system: FDA_SYSTEM,
     messages: [{ role: 'user', content: prompt }]
@@ -753,13 +742,104 @@ The korean object must contain real Korean text (한국어), not English descrip
   }
 }
 
+// ─── KOREAN TRANSLATION (separate short call) ────────────────────────────────
+async function translateComplianceKorean(apiKey, data) {
+  const g = data.grammar || {};
+  const c = data.compliance || {};
+  const input = {
+    summary: data.summary || '',
+    grammar_issues: g.issues || [],
+    grammar_corrected: g.corrected || '',
+    violation_issues: (c.violations || []).map(v => v.issue || ''),
+    alternatives: data.alternatives || []
+  };
+
+  const prompt = `Translate the following supplement compliance analysis fields to Korean (한국어). Return ONLY a JSON object (no markdown fences):
+{
+  "summary": "<Korean translation of: ${JSON.stringify(input.summary)}>",
+  "grammar_issues": ${JSON.stringify(input.grammar_issues.map(() => '<Korean translation>'))},
+  "grammar_corrected": "<Korean translation of: ${JSON.stringify(input.grammar_corrected)}>",
+  "violations": ${JSON.stringify(input.violation_issues.map(() => '<Korean translation>'))},
+  "alternatives": ${JSON.stringify(input.alternatives.map(() => '<Korean translation>'))}
+}
+
+Replace every placeholder with the actual Korean translation. All values must be real Korean text (한국어).`;
+
+  try {
+    const resp = await callAnthropic(apiKey, {
+      model: 'claude-opus-4-5',
+      max_tokens: 2048,
+      messages: [{ role: 'user', content: prompt }]
+    });
+    const textBlock = resp.content.find(b => b.type === 'text');
+    let text = (textBlock?.text || '{}').trim().replace(/^```(?:json)?\s*/m,'').replace(/\s*```\s*$/m,'');
+    try { return JSON.parse(text); } catch {
+      const m = text.match(/\{[\s\S]*\}/);
+      return m ? JSON.parse(m[0]) : {};
+    }
+  } catch { return {}; }
+}
+
+function renderComplianceKorean(ko, data) {
+  if (!ko || !Object.keys(ko).length) return;
+  const koLabel = s => `<span style="font-size:0.78rem;color:#888;font-style:italic;">${esc(s)}</span>`;
+
+  // Summary
+  if (ko.summary) {
+    const summaryEl = document.getElementById('summaryText');
+    summaryEl.innerHTML += `<br><br>${koLabel(ko.summary)}`;
+  }
+
+  // Violations
+  const koViols = ko.violations || [];
+  if (koViols.length) {
+    document.querySelectorAll('#violationsList .violation-item').forEach((el, i) => {
+      if (koViols[i]) {
+        const existing = el.querySelector('.viol-reg');
+        const koDiv = document.createElement('div');
+        koDiv.className = 'viol-issue';
+        koDiv.style.cssText = 'color:#888;font-style:italic;font-size:0.82rem;';
+        koDiv.textContent = koViols[i];
+        el.insertBefore(koDiv, existing);
+      }
+    });
+  }
+
+  // Grammar issues
+  const koIssues = ko.grammar_issues || [];
+  if (koIssues.length) {
+    document.querySelectorAll('#grammarContent .issue-list li').forEach((li, i) => {
+      if (koIssues[i]) li.innerHTML += ` <span style="color:#aaa;font-style:italic;">/ ${esc(koIssues[i])}</span>`;
+    });
+  }
+
+  // Grammar corrected
+  if (ko.grammar_corrected) {
+    const box = document.querySelector('#grammarContent .corrected-box');
+    if (box) box.innerHTML += `<br><br>${koLabel(ko.grammar_corrected)}`;
+  }
+
+  // Alternatives
+  const koAlts = ko.alternatives || [];
+  if (koAlts.length) {
+    document.querySelectorAll('#alternativesList .alt-item').forEach((el, i) => {
+      if (koAlts[i]) {
+        const koDiv = document.createElement('div');
+        koDiv.style.cssText = 'font-size:0.8rem;color:#4ade80;margin-top:4px;font-style:italic;';
+        koDiv.textContent = koAlts[i];
+        el.appendChild(koDiv);
+      }
+    });
+  }
+}
+
 // ─── COMPETITOR SEARCH (tool use loop) ───────────────────────────────────────
 async function searchCompetitors(apiKey, statement) {
   const SYSTEM = 'You are a market research analyst for dietary supplements with deep knowledge of how brands market products on Amazon and D2C websites.';
   const userMsg = `Based on this supplement marketing statement: "${statement}"\n\nList realistic marketing claims that similar supplement brands commonly use on Amazon and D2C websites. Use real-sounding brand names.\n\nFor the "url" field: if source is "Amazon", provide a real Amazon search URL like https://www.amazon.com/s?k=brand+name+supplement (URL-encode the brand name). If source is "D2C", provide a plausible brand website URL like https://www.brandname.com.\n\nReturn ONLY a JSON array (no markdown fences):\n[{"source":"Amazon" or "D2C","product":"brand name","url":"https://...","claims":["claim 1","claim 2","claim 3"],"notable_language":"standout marketing language"}]\n\nReturn 4-6 entries.`;
 
   const resp = await callAnthropic(apiKey, {
-    model: 'claude-3-5-sonnet-20241022',
+    model: 'claude-opus-4-5',
     max_tokens: 2048,
     system: SYSTEM,
     messages: [{ role: 'user', content: userMsg }]
@@ -1079,7 +1159,7 @@ async function researchClaims(apiKey, query) {
     `Return 6-10 entries covering a mix of Amazon and D2C brands.`;
 
   const resp = await callAnthropic(apiKey, {
-    model: 'claude-3-5-sonnet-20241022',
+    model: 'claude-opus-4-5',
     max_tokens: 4096,
     system: SYSTEM,
     messages: [{ role: 'user', content: userMsg }]
@@ -1279,25 +1359,11 @@ Return ONLY a JSON object (no markdown fences):
   "violations": [
     {"element":"element name","issue":"description","regulation":"reg ref","severity":"high" or "medium" or "low"}
   ],
-  "recommendations": ["Specific actionable recommendation 1","Specific actionable recommendation 2"],
-  "korean": {
-    "summary": "",
-    "checklist_details": [],
-    "violation_issues": [],
-    "recommendations": []
-  }
-}
-
-After completing the JSON above, fill in the "korean" object with actual Korean-language translations (한국어):
-- korean.summary → translate the summary value to Korean
-- korean.checklist_details → translate each checklist item's detail field to Korean (same order, same array length)
-- korean.violation_issues → translate each violation's issue field to Korean (same order, same array length)
-- korean.recommendations → translate each recommendation to Korean (same order, same array length)
-
-The korean object must contain real Korean text (한국어), not English descriptions.`;
+  "recommendations": ["Specific actionable recommendation 1","Specific actionable recommendation 2"]
+}`;
 
     const resp = await callAnthropic(apiKey, {
-      model: 'claude-3-5-sonnet-20241022',
+      model: 'claude-opus-4-5',
       max_tokens: 4096,
       system: LABEL_SYSTEM,
       messages: [{ role: 'user', content: [
@@ -1312,6 +1378,13 @@ The korean object must contain real Korean text (한국어), not English descrip
     try { data = JSON.parse(text); }
     catch { const m = text.match(/\{[\s\S]*\}/); data = m ? JSON.parse(m[0]) : { overall_status:'needs_review', summary:text, checklist:[], violations:[], recommendations:[] }; }
     renderLabelResult(data);
+
+    // Korean translation — separate short call
+    document.getElementById('labelStatusMsg').textContent = 'Translating to Korean…';
+    sb.style.display = 'flex';
+    const labelKo = await translateLabelKorean(apiKey, data);
+    renderLabelKorean(labelKo);
+
   } catch (err) {
     sb.style.background = '#fef2f2'; sb.style.borderColor = '#fca5a5'; sb.style.color = '#b91c1c';
     document.getElementById('labelStatusMsg').textContent = 'Error: ' + err.message;
@@ -1382,6 +1455,75 @@ function renderLabelResult(data) {
   document.getElementById('labelResult').classList.remove('hidden');
   document.getElementById('labelStatusBar').style.display = 'none';
   document.getElementById('labelResult').scrollIntoView({ behavior:'smooth', block:'start' });
+}
+
+async function translateLabelKorean(apiKey, data) {
+  const input = {
+    summary: data.summary || '',
+    checklist_details: (data.checklist || []).map(c => c.detail || ''),
+    violation_issues: (data.violations || []).map(v => v.issue || ''),
+    recommendations: data.recommendations || []
+  };
+  const prompt = `Translate the following supplement label compliance fields to Korean (한국어). Return ONLY a JSON object (no markdown fences):
+{
+  "summary": "<Korean>",
+  "checklist_details": ${JSON.stringify(input.checklist_details.map(() => '<Korean>'))},
+  "violation_issues": ${JSON.stringify(input.violation_issues.map(() => '<Korean>'))},
+  "recommendations": ${JSON.stringify(input.recommendations.map(() => '<Korean>'))}
+}
+
+Source text to translate:
+- summary: ${JSON.stringify(input.summary)}
+- checklist_details: ${JSON.stringify(input.checklist_details)}
+- violation_issues: ${JSON.stringify(input.violation_issues)}
+- recommendations: ${JSON.stringify(input.recommendations)}
+
+Replace every "<Korean>" with the actual Korean translation. All values must be real Korean text (한국어).`;
+
+  try {
+    const resp = await callAnthropic(apiKey, { model: 'claude-opus-4-5', max_tokens: 2048, messages: [{ role: 'user', content: prompt }] });
+    const textBlock = resp.content.find(b => b.type === 'text');
+    let text = (textBlock?.text || '{}').trim().replace(/^```(?:json)?\s*/m,'').replace(/\s*```\s*$/m,'');
+    try { return JSON.parse(text); } catch { const m = text.match(/\{[\s\S]*\}/); return m ? JSON.parse(m[0]) : {}; }
+  } catch { return {}; }
+}
+
+function renderLabelKorean(ko) {
+  if (!ko || !Object.keys(ko).length) return;
+  const koLabel = s => `<span style="font-size:0.78rem;color:#888;font-style:italic;">${esc(s)}</span>`;
+
+  if (ko.summary) {
+    const el = document.getElementById('labelSummary');
+    el.innerHTML += `<br><br>${koLabel(ko.summary)}`;
+  }
+
+  const koDetails = ko.checklist_details || [];
+  document.querySelectorAll('#labelChecklist .check-detail').forEach((el, i) => {
+    if (koDetails[i]) el.innerHTML += ` <span style="color:#aaa;font-style:italic;">/ ${esc(koDetails[i])}</span>`;
+  });
+
+  const koViols = ko.violation_issues || [];
+  document.querySelectorAll('#labelViolations .violation-item').forEach((el, i) => {
+    if (koViols[i]) {
+      const reg = el.querySelector('.viol-reg');
+      const d = document.createElement('div');
+      d.className = 'viol-issue'; d.style.cssText = 'color:#888;font-style:italic;font-size:0.82rem;';
+      d.textContent = koViols[i];
+      el.insertBefore(d, reg);
+    }
+  });
+
+  const koRecs = ko.recommendations || [];
+  document.querySelectorAll('#labelRecommendations .alt-item').forEach((el, i) => {
+    if (koRecs[i]) {
+      const d = document.createElement('div');
+      d.style.cssText = 'font-size:0.8rem;color:#4ade80;margin-top:4px;font-style:italic;';
+      d.textContent = koRecs[i];
+      el.appendChild(d);
+    }
+  });
+
+  document.getElementById('labelStatusBar').style.display = 'none';
 }
 </script>
 </body>

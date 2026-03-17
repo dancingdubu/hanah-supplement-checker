@@ -720,7 +720,7 @@ Return ONLY a JSON object with this exact structure (no markdown fences):
 
   const resp = await callAnthropic(apiKey, {
     model: 'claude-opus-4-6',
-    max_tokens: 1500,
+    max_tokens: 4096,
     system: FDA_SYSTEM,
     messages: [{ role: 'user', content: prompt }]
   });
@@ -768,7 +768,7 @@ Replace every placeholder with the actual Korean translation. All values must be
   try {
     const resp = await callAnthropic(apiKey, {
       model: 'claude-opus-4-6',
-      max_tokens: 1000,
+      max_tokens: 2048,
       messages: [{ role: 'user', content: prompt }]
     });
     const textBlock = resp.content.find(b => b.type === 'text');
@@ -840,7 +840,7 @@ async function searchCompetitors(apiKey, statement) {
 
   const resp = await callAnthropic(apiKey, {
     model: 'claude-opus-4-6',
-    max_tokens: 1000,
+    max_tokens: 2048,
     system: SYSTEM,
     messages: [{ role: 'user', content: userMsg }]
   });
@@ -1186,7 +1186,7 @@ async function researchClaims(apiKey, query) {
 
   const resp = await callAnthropic(apiKey, {
     model: 'claude-opus-4-6',
-    max_tokens: 1500,
+    max_tokens: 4096,
     system: SYSTEM,
     messages: [{ role: 'user', content: userMsg }]
   });
@@ -1390,7 +1390,7 @@ Return ONLY a JSON object (no markdown fences):
 
     const resp = await callAnthropic(apiKey, {
       model: 'claude-opus-4-6',
-      max_tokens: 1500,
+      max_tokens: 4096,
       system: LABEL_SYSTEM,
       messages: [{ role: 'user', content: [
         { type: 'image', source: { type: 'base64', media_type: labelMediaType, data: labelImageData } },

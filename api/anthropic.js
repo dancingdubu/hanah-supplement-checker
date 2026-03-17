@@ -1,54 +1,42 @@
-const https = require('https');
+export const config = { runtime: 'edge' };
 
-async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-api-key');
+export default async function handler(req) {
+  const corsHeaders = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, x-api-key',
+  };
 
-  if (req.method === 'OPTIONS') return res.status(200).end();
-  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { status: 200, headers: corsHeaders });
+  }
 
-  const apiKey = req.headers['x-api-key'];
-  if (!apiKey) return res.status(400).json({ error: 'Missing x-api-key header' });
+  if (req.method !== 'POST') {
+    return new Response(JSON.stringify({ error: 'Method not allowed' }), { status: 405, headers: corsHeaders });
+  }
 
-  const bodyStr = JSON.stringify(req.body);
+  const apiKey = req.headers.get('x-api-key');
+  if (!apiKey) {
+    return new Response(JSON.stringify({ error: 'Missing x-api-key header' }), { status: 400, headers: corsHeaders });
+  }
 
-  return new Promise((resolve) => {
-    const options = {
-      hostname: 'api.anthropic.com',
-      path: '/v1/messages',
-      method: 'POST',
-      headers: {
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-        'content-type': 'application/json',
-        'content-length': Buffer.byteLength(bodyStr)
-      }
-    };
+  let body;
+  try { body = await req.json(); }
+  catch { return new Response(JSON.stringify({ error: 'Invalid JSON body' }), { status: 400, headers: corsHeaders }); }
 
-    const proxyReq = https.request(options, (proxyRes) => {
-      let data = '';
-      proxyRes.on('data', chunk => { data += chunk; });
-      proxyRes.on('end', () => {
-        try {
-          res.status(proxyRes.statusCode).json(JSON.parse(data));
-        } catch {
-          res.status(proxyRes.statusCode).send(data);
-        }
-        resolve();
-      });
-    });
+  const upstream = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
 
-    proxyReq.on('error', (err) => {
-      res.status(500).json({ error: err.message });
-      resolve();
-    });
-
-    proxyReq.write(bodyStr);
-    proxyReq.end();
+  const data = await upstream.text();
+  return new Response(data, {
+    status: upstream.status,
+    headers: { ...corsHeaders, 'Content-Type': 'application/json; charset=utf-8' },
   });
 }
-
-handler.config = { api: { bodyParser: { sizeLimit: '50mb' } } };
-
-module.exports = handler;

@@ -1279,12 +1279,26 @@ Return ONLY a JSON object (no markdown fences):
   "violations": [
     {"element":"element name","issue":"description","regulation":"reg ref","severity":"high" or "medium" or "low"}
   ],
-  "recommendations": ["Specific actionable recommendation 1","Specific actionable recommendation 2"]
-}`;
+  "recommendations": ["Specific actionable recommendation 1","Specific actionable recommendation 2"],
+  "korean": {
+    "summary": "",
+    "checklist_details": [],
+    "violation_issues": [],
+    "recommendations": []
+  }
+}
+
+After completing the JSON above, fill in the "korean" object with actual Korean-language translations (한국어):
+- korean.summary → translate the summary value to Korean
+- korean.checklist_details → translate each checklist item's detail field to Korean (same order, same array length)
+- korean.violation_issues → translate each violation's issue field to Korean (same order, same array length)
+- korean.recommendations → translate each recommendation to Korean (same order, same array length)
+
+The korean object must contain real Korean text (한국어), not English descriptions.`;
 
     const resp = await callAnthropic(apiKey, {
       model: 'claude-opus-4-6',
-      max_tokens: 4096,
+      max_tokens: 8192,
       system: LABEL_SYSTEM,
       messages: [{ role: 'user', content: [
         { type: 'image', source: { type: 'base64', media_type: labelMediaType, data: labelImageData } },
@@ -1321,37 +1335,48 @@ function renderLabelResult(data) {
     <div><div class="status-label">${info.label}</div><div class="status-sub">${info.sub}</div></div>
     <span class="risk-badge risk-${risk}">Risk: ${risk}</span>`;
 
-  document.getElementById('labelSummary').textContent = data.summary || '';
+  const ko = data.korean || {};
+  const koLabel = s => `<span style="font-size:0.78rem;color:#888;font-style:italic;">${esc(s)}</span>`;
+
+  document.getElementById('labelSummary').innerHTML = esc(data.summary || '') +
+    (ko.summary ? `<br><br>${koLabel(ko.summary)}` : '');
 
   const icons = { pass:'✅', fail:'❌', warn:'⚠️', na:'➖' };
-  document.getElementById('labelChecklist').innerHTML = (data.checklist||[]).map(item => `
+  const koDetails = ko.checklist_details || [];
+  document.getElementById('labelChecklist').innerHTML = (data.checklist||[]).map((item, i) => `
     <div class="label-check-item ${item.status||'na'}">
       <span class="check-icon">${icons[item.status]||'➖'}</span>
       <div class="check-body">
         <div class="check-title">${esc(item.element||'')}</div>
-        <div class="check-detail">${esc(item.detail||'')}</div>
+        <div class="check-detail">${esc(item.detail||'')}${koDetails[i] ? ` <span style="color:#aaa;font-style:italic;">/ ${esc(koDetails[i])}</span>` : ''}</div>
         <div class="check-reg">${esc(item.regulation||'')}</div>
       </div>
     </div>`).join('');
 
   const violations = data.violations || [];
+  const koViolIssues = ko.violation_issues || [];
   const vSec = document.getElementById('labelViolationsSection');
   if (violations.length > 0) {
     vSec.classList.remove('hidden');
-    document.getElementById('labelViolations').innerHTML = violations.map(v => `
+    document.getElementById('labelViolations').innerHTML = violations.map((v, i) => `
       <div class="violation-item ${v.severity||'high'}">
         <div class="viol-text">${esc(v.element||'')} <span class="sev-tag sev-${v.severity||'high'}">${v.severity||'high'}</span></div>
         <div class="viol-issue">${esc(v.issue||'')}</div>
+        ${koViolIssues[i] ? `<div class="viol-issue" style="color:#888;font-style:italic;font-size:0.82rem;">${esc(koViolIssues[i])}</div>` : ''}
         <div class="viol-reg">${esc(v.regulation||'')}</div>
       </div>`).join('');
   } else { vSec.classList.add('hidden'); }
 
   const recs = data.recommendations || [];
+  const koRecs = ko.recommendations || [];
   const rSec = document.getElementById('labelRecommendationsSection');
   if (recs.length > 0) {
     rSec.classList.remove('hidden');
     document.getElementById('labelRecommendations').innerHTML = recs.map((r, i) => `
-      <div class="alt-item" style="cursor:default;"><span>${i+1}. ${esc(r)}</span></div>`).join('');
+      <div class="alt-item" style="cursor:default;">
+        <span>${i+1}. ${esc(r)}</span>
+        ${koRecs[i] ? `<div style="font-size:0.8rem;color:#4ade80;margin-top:4px;font-style:italic;">${esc(koRecs[i])}</div>` : ''}
+      </div>`).join('');
   } else { rSec.classList.add('hidden'); }
 
   document.getElementById('labelResult').classList.remove('hidden');

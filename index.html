@@ -730,7 +730,7 @@ After completing the JSON above, fill in the "korean" object with actual Korean-
 The korean object must contain real Korean text (한국어), not English descriptions.`;
 
   const resp = await callAnthropic(apiKey, {
-    model: 'claude-opus-4-6',
+    model: 'claude-3-5-sonnet-20241022',
     max_tokens: 8192,
     system: FDA_SYSTEM,
     messages: [{ role: 'user', content: prompt }]
@@ -759,7 +759,7 @@ async function searchCompetitors(apiKey, statement) {
   const userMsg = `Based on this supplement marketing statement: "${statement}"\n\nList realistic marketing claims that similar supplement brands commonly use on Amazon and D2C websites. Use real-sounding brand names.\n\nFor the "url" field: if source is "Amazon", provide a real Amazon search URL like https://www.amazon.com/s?k=brand+name+supplement (URL-encode the brand name). If source is "D2C", provide a plausible brand website URL like https://www.brandname.com.\n\nReturn ONLY a JSON array (no markdown fences):\n[{"source":"Amazon" or "D2C","product":"brand name","url":"https://...","claims":["claim 1","claim 2","claim 3"],"notable_language":"standout marketing language"}]\n\nReturn 4-6 entries.`;
 
   const resp = await callAnthropic(apiKey, {
-    model: 'claude-opus-4-6',
+    model: 'claude-3-5-sonnet-20241022',
     max_tokens: 2048,
     system: SYSTEM,
     messages: [{ role: 'user', content: userMsg }]
@@ -1079,7 +1079,7 @@ async function researchClaims(apiKey, query) {
     `Return 6-10 entries covering a mix of Amazon and D2C brands.`;
 
   const resp = await callAnthropic(apiKey, {
-    model: 'claude-opus-4-6',
+    model: 'claude-3-5-sonnet-20241022',
     max_tokens: 4096,
     system: SYSTEM,
     messages: [{ role: 'user', content: userMsg }]
@@ -1297,7 +1297,7 @@ After completing the JSON above, fill in the "korean" object with actual Korean-
 The korean object must contain real Korean text (한국어), not English descriptions.`;
 
     const resp = await callAnthropic(apiKey, {
-      model: 'claude-opus-4-6',
+      model: 'claude-3-5-sonnet-20241022',
       max_tokens: 8192,
       system: LABEL_SYSTEM,
       messages: [{ role: 'user', content: [

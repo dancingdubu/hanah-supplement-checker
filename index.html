@@ -858,10 +858,7 @@ async function searchCompetitors(apiKey, statement) {
 async function callAnthropic(apiKey, body) {
   const resp = await fetch('/api/anthropic', {
     method: 'POST',
-    headers: {
-      'x-api-key': apiKey,
-      'content-type': 'application/json'
-    },
+    headers: { 'x-api-key': apiKey, 'content-type': 'application/json' },
     body: JSON.stringify(body)
   });
 
@@ -870,7 +867,36 @@ async function callAnthropic(apiKey, body) {
     throw new Error(err.error?.message || `API error ${resp.status}`);
   }
 
-  return resp.json();
+  // Read SSE stream and reconstruct full message
+  const reader = resp.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let message = null;
+  let blockText = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n');
+    buffer = lines.pop();
+
+    for (const line of lines) {
+      if (!line.startsWith('data: ')) continue;
+      const raw = line.slice(6).trim();
+      if (raw === '[DONE]') continue;
+      let evt;
+      try { evt = JSON.parse(raw); } catch { continue; }
+
+      if (evt.type === 'message_start')          { message = evt.message; message.content = []; }
+      else if (evt.type === 'content_block_start') { blockText = ''; }
+      else if (evt.type === 'content_block_delta' && evt.delta?.type === 'text_delta') { blockText += evt.delta.text || ''; }
+      else if (evt.type === 'content_block_stop')  { if (message) message.content.push({ type: 'text', text: blockText }); }
+      else if (evt.type === 'error')               { throw new Error(evt.error?.message || 'Streaming error'); }
+    }
+  }
+
+  return message || { content: [{ type: 'text', text: blockText }] };
 }
 
 // ─── RENDER COMPLIANCE ────────────────────────────────────────────────────────

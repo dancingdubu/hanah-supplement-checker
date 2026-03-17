@@ -1379,12 +1379,6 @@ Return ONLY a JSON object (no markdown fences):
     catch { const m = text.match(/\{[\s\S]*\}/); data = m ? JSON.parse(m[0]) : { overall_status:'needs_review', summary:text, checklist:[], violations:[], recommendations:[] }; }
     renderLabelResult(data);
 
-    // Korean translation — separate short call
-    document.getElementById('labelStatusMsg').textContent = 'Translating to Korean…';
-    sb.style.display = 'flex';
-    const labelKo = await translateLabelKorean(apiKey, data);
-    renderLabelKorean(labelKo);
-
   } catch (err) {
     sb.style.background = '#fef2f2'; sb.style.borderColor = '#fca5a5'; sb.style.color = '#b91c1c';
     document.getElementById('labelStatusMsg').textContent = 'Error: ' + err.message;
@@ -1408,48 +1402,37 @@ function renderLabelResult(data) {
     <div><div class="status-label">${info.label}</div><div class="status-sub">${info.sub}</div></div>
     <span class="risk-badge risk-${risk}">Risk: ${risk}</span>`;
 
-  const ko = data.korean || {};
-  const koLabel = s => `<span style="font-size:0.78rem;color:#888;font-style:italic;">${esc(s)}</span>`;
-
-  document.getElementById('labelSummary').innerHTML = esc(data.summary || '') +
-    (ko.summary ? `<br><br>${koLabel(ko.summary)}` : '');
+  document.getElementById('labelSummary').textContent = data.summary || '';
 
   const icons = { pass:'✅', fail:'❌', warn:'⚠️', na:'➖' };
-  const koDetails = ko.checklist_details || [];
-  document.getElementById('labelChecklist').innerHTML = (data.checklist||[]).map((item, i) => `
+  document.getElementById('labelChecklist').innerHTML = (data.checklist||[]).map(item => `
     <div class="label-check-item ${item.status||'na'}">
       <span class="check-icon">${icons[item.status]||'➖'}</span>
       <div class="check-body">
         <div class="check-title">${esc(item.element||'')}</div>
-        <div class="check-detail">${esc(item.detail||'')}${koDetails[i] ? ` <span style="color:#aaa;font-style:italic;">/ ${esc(koDetails[i])}</span>` : ''}</div>
+        <div class="check-detail">${esc(item.detail||'')}</div>
         <div class="check-reg">${esc(item.regulation||'')}</div>
       </div>
     </div>`).join('');
 
   const violations = data.violations || [];
-  const koViolIssues = ko.violation_issues || [];
   const vSec = document.getElementById('labelViolationsSection');
   if (violations.length > 0) {
     vSec.classList.remove('hidden');
-    document.getElementById('labelViolations').innerHTML = violations.map((v, i) => `
+    document.getElementById('labelViolations').innerHTML = violations.map(v => `
       <div class="violation-item ${v.severity||'high'}">
         <div class="viol-text">${esc(v.element||'')} <span class="sev-tag sev-${v.severity||'high'}">${v.severity||'high'}</span></div>
         <div class="viol-issue">${esc(v.issue||'')}</div>
-        ${koViolIssues[i] ? `<div class="viol-issue" style="color:#888;font-style:italic;font-size:0.82rem;">${esc(koViolIssues[i])}</div>` : ''}
         <div class="viol-reg">${esc(v.regulation||'')}</div>
       </div>`).join('');
   } else { vSec.classList.add('hidden'); }
 
   const recs = data.recommendations || [];
-  const koRecs = ko.recommendations || [];
   const rSec = document.getElementById('labelRecommendationsSection');
   if (recs.length > 0) {
     rSec.classList.remove('hidden');
     document.getElementById('labelRecommendations').innerHTML = recs.map((r, i) => `
-      <div class="alt-item" style="cursor:default;">
-        <span>${i+1}. ${esc(r)}</span>
-        ${koRecs[i] ? `<div style="font-size:0.8rem;color:#4ade80;margin-top:4px;font-style:italic;">${esc(koRecs[i])}</div>` : ''}
-      </div>`).join('');
+      <div class="alt-item" style="cursor:default;"><span>${i+1}. ${esc(r)}</span></div>`).join('');
   } else { rSec.classList.add('hidden'); }
 
   document.getElementById('labelResult').classList.remove('hidden');
@@ -1457,74 +1440,7 @@ function renderLabelResult(data) {
   document.getElementById('labelResult').scrollIntoView({ behavior:'smooth', block:'start' });
 }
 
-async function translateLabelKorean(apiKey, data) {
-  const input = {
-    summary: data.summary || '',
-    checklist_details: (data.checklist || []).map(c => c.detail || ''),
-    violation_issues: (data.violations || []).map(v => v.issue || ''),
-    recommendations: data.recommendations || []
-  };
-  const prompt = `Translate the following supplement label compliance fields to Korean (한국어). Return ONLY a JSON object (no markdown fences):
-{
-  "summary": "<Korean>",
-  "checklist_details": ${JSON.stringify(input.checklist_details.map(() => '<Korean>'))},
-  "violation_issues": ${JSON.stringify(input.violation_issues.map(() => '<Korean>'))},
-  "recommendations": ${JSON.stringify(input.recommendations.map(() => '<Korean>'))}
-}
 
-Source text to translate:
-- summary: ${JSON.stringify(input.summary)}
-- checklist_details: ${JSON.stringify(input.checklist_details)}
-- violation_issues: ${JSON.stringify(input.violation_issues)}
-- recommendations: ${JSON.stringify(input.recommendations)}
-
-Replace every "<Korean>" with the actual Korean translation. All values must be real Korean text (한국어).`;
-
-  try {
-    const resp = await callAnthropic(apiKey, { model: 'claude-opus-4-6', max_tokens: 1000, messages: [{ role: 'user', content: prompt }] });
-    const textBlock = resp.content.find(b => b.type === 'text');
-    let text = (textBlock?.text || '{}').trim().replace(/^```(?:json)?\s*/m,'').replace(/\s*```\s*$/m,'');
-    try { return JSON.parse(text); } catch { const m = text.match(/\{[\s\S]*\}/); return m ? JSON.parse(m[0]) : {}; }
-  } catch { return {}; }
-}
-
-function renderLabelKorean(ko) {
-  if (!ko || !Object.keys(ko).length) return;
-  const koLabel = s => `<span style="font-size:0.78rem;color:#888;font-style:italic;">${esc(s)}</span>`;
-
-  if (ko.summary) {
-    const el = document.getElementById('labelSummary');
-    el.innerHTML += `<br><br>${koLabel(ko.summary)}`;
-  }
-
-  const koDetails = ko.checklist_details || [];
-  document.querySelectorAll('#labelChecklist .check-detail').forEach((el, i) => {
-    if (koDetails[i]) el.innerHTML += ` <span style="color:#aaa;font-style:italic;">/ ${esc(koDetails[i])}</span>`;
-  });
-
-  const koViols = ko.violation_issues || [];
-  document.querySelectorAll('#labelViolations .violation-item').forEach((el, i) => {
-    if (koViols[i]) {
-      const reg = el.querySelector('.viol-reg');
-      const d = document.createElement('div');
-      d.className = 'viol-issue'; d.style.cssText = 'color:#888;font-style:italic;font-size:0.82rem;';
-      d.textContent = koViols[i];
-      el.insertBefore(d, reg);
-    }
-  });
-
-  const koRecs = ko.recommendations || [];
-  document.querySelectorAll('#labelRecommendations .alt-item').forEach((el, i) => {
-    if (koRecs[i]) {
-      const d = document.createElement('div');
-      d.style.cssText = 'font-size:0.8rem;color:#4ade80;margin-top:4px;font-style:italic;';
-      d.textContent = koRecs[i];
-      el.appendChild(d);
-    }
-  });
-
-  document.getElementById('labelStatusBar').style.display = 'none';
-}
 </script>
 </body>
 </html>

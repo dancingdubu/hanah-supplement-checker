@@ -1,6 +1,6 @@
 const https = require('https');
 
-module.exports = async function handler(req, res) {
+async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-api-key');
@@ -47,4 +47,8 @@ module.exports = async function handler(req, res) {
     proxyReq.write(bodyStr);
     proxyReq.end();
   });
-};
+}
+
+handler.config = { api: { bodyParser: { sizeLimit: '50mb' } } };
+
+module.exports = handler;

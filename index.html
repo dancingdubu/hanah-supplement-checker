@@ -332,6 +332,34 @@
       cursor: pointer; transition: all 0.12s;
     }
     .export-btn:hover { background: #0f3460; color: white; }
+
+    /* ── LABEL TAB ── */
+    .drop-zone {
+      border: 2px dashed #c7d7ff; border-radius: 12px; padding: 40px 20px;
+      text-align: center; cursor: pointer; transition: all 0.2s;
+      background: #f8faff; position: relative;
+    }
+    .drop-zone:hover, .drop-zone.drag-over { border-color: #0f3460; background: #f0f4ff; }
+    .drop-zone input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+    .drop-zone-icon { font-size: 2.5rem; margin-bottom: 10px; }
+    .drop-zone p { color: #888; font-size: 0.88rem; }
+    .drop-zone strong { color: #0f3460; }
+
+    #labelPreview { max-width: 100%; max-height: 420px; border-radius: 8px; border: 1px solid #e5e7eb; display: block; margin: 0 auto; }
+
+    .label-check-item {
+      display: flex; align-items: flex-start; gap: 12px;
+      padding: 10px 14px; border-radius: 8px; margin-bottom: 8px; border: 1px solid #e5e7eb;
+    }
+    .label-check-item.pass { background: #f0fdf4; border-color: #bbf7d0; }
+    .label-check-item.fail { background: #fef2f2; border-color: #fecaca; }
+    .label-check-item.warn { background: #fffbeb; border-color: #fde68a; }
+    .label-check-item.na   { background: #f9fafb; border-color: #e5e7eb; }
+    .check-icon { font-size: 1.1rem; flex-shrink: 0; margin-top: 1px; }
+    .check-body { flex: 1; }
+    .check-title { font-weight: 600; font-size: 0.88rem; color: #374151; }
+    .check-detail { font-size: 0.82rem; color: #6b7280; margin-top: 3px; line-height: 1.5; }
+    .check-reg { font-size: 0.73rem; color: #aaa; margin-top: 3px; font-style: italic; }
   </style>
 </head>
 <body>
@@ -350,6 +378,7 @@
   <nav class="tab-nav">
     <button class="tab-btn active" id="tabChecker" onclick="switchTab('checker')">Claim Checker</button>
     <button class="tab-btn" id="tabResearch" onclick="switchTab('research')">Claim Research</button>
+    <button class="tab-btn" id="tabLabel" onclick="switchTab('label')">Label Checker</button>
   </nav>
 </header>
 
@@ -490,6 +519,70 @@
   </div>
 
 </div><!-- end panelResearch -->
+
+<!-- ===== LABEL TAB ===== -->
+<div id="panelLabel" class="tab-panel">
+
+  <div style="padding:10px 14px;background:#fffbeb;border:1.5px solid #fbbf24;border-radius:8px;margin-bottom:16px;font-size:0.82rem;color:#92400e;">
+    Uses the same Anthropic API key entered in the Claim Checker tab.
+  </div>
+
+  <!-- UPLOAD -->
+  <div class="card">
+    <div class="card-title">Upload Label / Packaging Image</div>
+    <div class="drop-zone" id="dropZone">
+      <input type="file" id="labelFile" accept="image/*" onchange="onFileSelect(event)" />
+      <div class="drop-zone-icon">🖼️</div>
+      <p><strong>Click to upload</strong> or drag &amp; drop an image</p>
+      <p style="margin-top:4px;">PNG, JPG, WEBP — max 5 MB</p>
+    </div>
+    <div id="labelPreviewWrap" style="margin-top:16px;display:none;">
+      <img id="labelPreview" src="" alt="Label preview" />
+      <div style="text-align:center;margin-top:8px;">
+        <button onclick="clearLabel()" style="font-size:0.8rem;color:#888;background:none;border:none;cursor:pointer;text-decoration:underline;">Remove image</button>
+      </div>
+    </div>
+    <button class="btn-primary" id="labelBtn" onclick="runLabelCheck()" style="margin-top:16px;" disabled>
+      <svg width="15" height="15" viewBox="0 0 15 15" fill="currentColor">
+        <path d="M7.5 1a6.5 6.5 0 100 13A6.5 6.5 0 007.5 1zm0 1.2a5.3 5.3 0 110 10.6A5.3 5.3 0 017.5 2.2zM7 4.5v4l3 1.5.4-.8L8 8.1V4.5H7z"/>
+      </svg>
+      Check Label Compliance
+    </button>
+  </div>
+
+  <!-- STATUS -->
+  <div id="labelStatusBar" style="display:none;align-items:center;gap:12px;padding:13px 18px;background:#f0f4ff;border:1.5px solid #c7d7ff;border-radius:8px;font-size:0.88rem;color:#0f3460;margin-bottom:20px;">
+    <div class="spinner"></div>
+    <span id="labelStatusMsg">Analyzing label…</span>
+  </div>
+
+  <!-- RESULTS -->
+  <div id="labelResult" class="card hidden">
+    <div class="card-title">Label Compliance Analysis</div>
+    <div id="labelBanner" class="status-banner"></div>
+
+    <div class="section">
+      <div class="section-title">Summary</div>
+      <p id="labelSummary" class="summary-text"></p>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Required Label Elements</div>
+      <div id="labelChecklist"></div>
+    </div>
+
+    <div id="labelViolationsSection" class="section hidden">
+      <div class="section-title">Issues Found</div>
+      <div id="labelViolations"></div>
+    </div>
+
+    <div id="labelRecommendationsSection" class="section hidden">
+      <div class="section-title">Recommendations</div>
+      <div id="labelRecommendations"></div>
+    </div>
+  </div>
+
+</div><!-- end panelLabel -->
 
 </div><!-- end container -->
 
@@ -683,10 +776,12 @@ async function searchCompetitors(apiKey, statement) {
 
 // ─── ANTHROPIC API CALL ───────────────────────────────────────────────────────
 async function callAnthropic(apiKey, body) {
-  const resp = await fetch('/api/anthropic', {
+  const resp = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
       'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-allow-browser': 'true',
       'content-type': 'application/json'
     },
     body: JSON.stringify(body)
@@ -860,8 +955,10 @@ function trunc(s, n) { return s.length > n ? s.slice(0, n) + '…' : s; }
 function switchTab(tab) {
   document.getElementById('panelChecker').classList.toggle('active', tab === 'checker');
   document.getElementById('panelResearch').classList.toggle('active', tab === 'research');
+  document.getElementById('panelLabel').classList.toggle('active', tab === 'label');
   document.getElementById('tabChecker').classList.toggle('active', tab === 'checker');
   document.getElementById('tabResearch').classList.toggle('active', tab === 'research');
+  document.getElementById('tabLabel').classList.toggle('active', tab === 'label');
 }
 
 // ─── RESEARCH TAB ─────────────────────────────────────────────────────────────
@@ -1077,6 +1174,176 @@ function dlFile(name, mime, content) {
   a.href = URL.createObjectURL(new Blob([content], { type: mime }));
   a.download = name;
   a.click();
+}
+
+// ─── LABEL TAB ────────────────────────────────────────────────────────────────
+let labelImageData = null;
+let labelMediaType = 'image/jpeg';
+
+function onFileSelect(event) {
+  const file = event.target.files[0];
+  if (file) loadLabelFile(file);
+}
+
+function loadLabelFile(file) {
+  if (file.size > 5 * 1024 * 1024) { alert('Image too large. Please use an image under 5 MB.'); return; }
+  labelMediaType = file.type || 'image/jpeg';
+  const reader = new FileReader();
+  reader.onload = e => {
+    labelImageData = e.target.result.split(',')[1];
+    document.getElementById('labelPreview').src = e.target.result;
+    document.getElementById('labelPreviewWrap').style.display = 'block';
+    document.getElementById('labelBtn').disabled = false;
+  };
+  reader.readAsDataURL(file);
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  const dz = document.getElementById('dropZone');
+  dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag-over'); });
+  dz.addEventListener('dragleave', () => dz.classList.remove('drag-over'));
+  dz.addEventListener('drop', e => {
+    e.preventDefault(); dz.classList.remove('drag-over');
+    const file = e.dataTransfer.files[0];
+    if (file && file.type.startsWith('image/')) loadLabelFile(file);
+  });
+});
+
+function clearLabel() {
+  labelImageData = null;
+  document.getElementById('labelPreview').src = '';
+  document.getElementById('labelPreviewWrap').style.display = 'none';
+  document.getElementById('labelFile').value = '';
+  document.getElementById('labelBtn').disabled = true;
+  document.getElementById('labelResult').classList.add('hidden');
+}
+
+const LABEL_SYSTEM = `You are an expert FDA regulatory consultant specializing in dietary supplement labeling compliance under 21 CFR Part 101 and DSHEA (Dietary Supplement Health and Education Act of 1994).
+
+Required label elements for dietary supplements:
+1. Statement of Identity (21 CFR 101.3) — must say "dietary supplement" on principal display panel
+2. Net Quantity of Contents (21 CFR 101.105) — weight, measure, or count
+3. Supplement Facts Panel (21 CFR 101.36) — serving size, servings per container, dietary ingredients with amounts
+4. Other Ingredients List (21 CFR 101.4) — all other ingredients in descending order by weight
+5. Manufacturer/Distributor Name & Address (21 CFR 101.5)
+6. Directions for Use — required if needed for safe use
+7. Warnings & Cautions (21 CFR 101.17) — e.g. "Keep out of reach of children"
+8. Structure/Function Claim Disclaimer (21 CFR 101.93) — required if any structure/function claims are present
+9. Font Size & Legibility (21 CFR 101.15) — minimum 1/16 inch for required info
+
+Return ONLY valid JSON with no markdown fences.`;
+
+async function runLabelCheck() {
+  const apiKey = getKey();
+  if (!apiKey) { alert('Please enter your Anthropic API key in the Claim Checker tab.'); switchTab('checker'); return; }
+  if (!labelImageData) { alert('Please upload a label image first.'); return; }
+
+  document.getElementById('labelBtn').disabled = true;
+  document.getElementById('labelResult').classList.add('hidden');
+  const sb = document.getElementById('labelStatusBar');
+  sb.style.cssText = 'display:flex;align-items:center;gap:12px;padding:13px 18px;background:#f0f4ff;border:1.5px solid #c7d7ff;border-radius:8px;font-size:0.88rem;color:#0f3460;margin-bottom:20px;';
+  document.getElementById('labelStatusMsg').textContent = 'Analyzing label for FDA compliance…';
+
+  try {
+    const prompt = `Analyze this dietary supplement product label/packaging image for FDA compliance. Examine every visible element carefully.
+
+Return ONLY a JSON object (no markdown fences):
+{
+  "overall_status": "compliant" or "non_compliant" or "needs_review",
+  "risk_level": "low" or "medium" or "high",
+  "summary": "2-3 sentence plain-English overview of findings",
+  "checklist": [
+    {"element":"Statement of Identity","regulation":"21 CFR 101.3","status":"pass" or "fail" or "warn" or "na","detail":"what was found or is missing"},
+    {"element":"Net Quantity of Contents","regulation":"21 CFR 101.105","status":"...","detail":"..."},
+    {"element":"Supplement Facts Panel","regulation":"21 CFR 101.36","status":"...","detail":"..."},
+    {"element":"Other Ingredients List","regulation":"21 CFR 101.4","status":"...","detail":"..."},
+    {"element":"Manufacturer / Distributor Name & Address","regulation":"21 CFR 101.5","status":"...","detail":"..."},
+    {"element":"Directions for Use","regulation":"21 CFR 101.17","status":"...","detail":"..."},
+    {"element":"Warnings & Cautions","regulation":"21 CFR 101.17","status":"...","detail":"..."},
+    {"element":"Structure/Function Claim Disclaimer","regulation":"21 CFR 101.93","status":"...","detail":"..."},
+    {"element":"Font Size & Legibility","regulation":"21 CFR 101.15","status":"...","detail":"..."}
+  ],
+  "violations": [
+    {"element":"element name","issue":"description","regulation":"reg ref","severity":"high" or "medium" or "low"}
+  ],
+  "recommendations": ["Specific actionable recommendation 1","Specific actionable recommendation 2"]
+}`;
+
+    const resp = await callAnthropic(apiKey, {
+      model: 'claude-opus-4-6',
+      max_tokens: 4096,
+      system: LABEL_SYSTEM,
+      messages: [{ role: 'user', content: [
+        { type: 'image', source: { type: 'base64', media_type: labelMediaType, data: labelImageData } },
+        { type: 'text', text: prompt }
+      ]}]
+    });
+
+    const textBlock = resp.content.find(b => b.type === 'text');
+    let text = (textBlock?.text || '{}').trim().replace(/^```(?:json)?\s*/m,'').replace(/\s*```\s*$/m,'');
+    let data;
+    try { data = JSON.parse(text); }
+    catch { const m = text.match(/\{[\s\S]*\}/); data = m ? JSON.parse(m[0]) : { overall_status:'needs_review', summary:text, checklist:[], violations:[], recommendations:[] }; }
+    renderLabelResult(data);
+  } catch (err) {
+    sb.style.background = '#fef2f2'; sb.style.borderColor = '#fca5a5'; sb.style.color = '#b91c1c';
+    document.getElementById('labelStatusMsg').textContent = 'Error: ' + err.message;
+    document.getElementById('labelBtn').disabled = false;
+  }
+}
+
+function renderLabelResult(data) {
+  const statusInfo = {
+    compliant:     { icon: '✅', label: 'Compliant',     sub: 'This label appears to meet FDA dietary supplement labeling requirements.' },
+    non_compliant: { icon: '🚫', label: 'Non-Compliant', sub: 'This label has issues that likely violate FDA labeling regulations.' },
+    needs_review:  { icon: '⚠️', label: 'Needs Review',  sub: 'Some elements could not be verified or require further review.' }
+  };
+  const status = data.overall_status || 'needs_review';
+  const risk   = data.risk_level || 'medium';
+  const info   = statusInfo[status] || statusInfo.needs_review;
+
+  document.getElementById('labelBanner').className = `status-banner ${status}`;
+  document.getElementById('labelBanner').innerHTML = `
+    <span class="status-icon">${info.icon}</span>
+    <div><div class="status-label">${info.label}</div><div class="status-sub">${info.sub}</div></div>
+    <span class="risk-badge risk-${risk}">Risk: ${risk}</span>`;
+
+  document.getElementById('labelSummary').textContent = data.summary || '';
+
+  const icons = { pass:'✅', fail:'❌', warn:'⚠️', na:'➖' };
+  document.getElementById('labelChecklist').innerHTML = (data.checklist||[]).map(item => `
+    <div class="label-check-item ${item.status||'na'}">
+      <span class="check-icon">${icons[item.status]||'➖'}</span>
+      <div class="check-body">
+        <div class="check-title">${esc(item.element||'')}</div>
+        <div class="check-detail">${esc(item.detail||'')}</div>
+        <div class="check-reg">${esc(item.regulation||'')}</div>
+      </div>
+    </div>`).join('');
+
+  const violations = data.violations || [];
+  const vSec = document.getElementById('labelViolationsSection');
+  if (violations.length > 0) {
+    vSec.classList.remove('hidden');
+    document.getElementById('labelViolations').innerHTML = violations.map(v => `
+      <div class="violation-item ${v.severity||'high'}">
+        <div class="viol-text">${esc(v.element||'')} <span class="sev-tag sev-${v.severity||'high'}">${v.severity||'high'}</span></div>
+        <div class="viol-issue">${esc(v.issue||'')}</div>
+        <div class="viol-reg">${esc(v.regulation||'')}</div>
+      </div>`).join('');
+  } else { vSec.classList.add('hidden'); }
+
+  const recs = data.recommendations || [];
+  const rSec = document.getElementById('labelRecommendationsSection');
+  if (recs.length > 0) {
+    rSec.classList.remove('hidden');
+    document.getElementById('labelRecommendations').innerHTML = recs.map((r, i) => `
+      <div class="alt-item" style="cursor:default;"><span>${i+1}. ${esc(r)}</span></div>`).join('');
+  } else { rSec.classList.add('hidden'); }
+
+  document.getElementById('labelResult').classList.remove('hidden');
+  document.getElementById('labelStatusBar').style.display = 'none';
+  document.getElementById('labelResult').scrollIntoView({ behavior:'smooth', block:'start' });
 }
 </script>
 </body>

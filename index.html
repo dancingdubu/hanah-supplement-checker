@@ -731,7 +731,7 @@ The korean object must contain real Korean text (한국어), not English descrip
 
   const resp = await callAnthropic(apiKey, {
     model: 'claude-3-5-sonnet-20241022',
-    max_tokens: 8192,
+    max_tokens: 4096,
     system: FDA_SYSTEM,
     messages: [{ role: 'user', content: prompt }]
   });
@@ -1298,7 +1298,7 @@ The korean object must contain real Korean text (한국어), not English descrip
 
     const resp = await callAnthropic(apiKey, {
       model: 'claude-3-5-sonnet-20241022',
-      max_tokens: 8192,
+      max_tokens: 4096,
       system: LABEL_SYSTEM,
       messages: [{ role: 'user', content: [
         { type: 'image', source: { type: 'base64', media_type: labelMediaType, data: labelImageData } },

@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Supplement Claim Checker</title>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -360,9 +361,56 @@
     .check-title { font-weight: 600; font-size: 0.88rem; color: #374151; }
     .check-detail { font-size: 0.82rem; color: #6b7280; margin-top: 3px; line-height: 1.5; }
     .check-reg { font-size: 0.73rem; color: #aaa; margin-top: 3px; font-style: italic; }
+
+    /* LOGIN OVERLAY */
+    #loginOverlay {
+      position: fixed; inset: 0; z-index: 9999;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 60%, #0f3460 100%);
+      display: flex; align-items: center; justify-content: center;
+    }
+    #loginBox {
+      background: white; border-radius: 16px; padding: 48px 40px;
+      text-align: center; max-width: 380px; width: 90%;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+    }
+    #loginBox h2 { font-size: 1.3rem; font-weight: 700; color: #1a1a2e; margin-bottom: 8px; }
+    #loginBox p  { font-size: 0.85rem; color: #666; margin-bottom: 28px; }
+    #loginBox .logo { font-size: 2.2rem; margin-bottom: 16px; }
+    #googleSignInBtn { display: flex; justify-content: center; }
+    #loginError { color: #dc2626; font-size: 0.8rem; margin-top: 14px; display: none; }
+
+    /* USER BADGE */
+    #userBadge {
+      display: none; align-items: center; gap: 8px;
+      font-size: 0.78rem; color: rgba(255,255,255,0.8);
+    }
+    #userBadge img { width: 26px; height: 26px; border-radius: 50%; }
+    #userBadge button {
+      background: rgba(255,255,255,0.15); border: none; color: white;
+      font-size: 0.72rem; padding: 3px 8px; border-radius: 4px; cursor: pointer;
+    }
+    #userBadge button:hover { background: rgba(255,255,255,0.25); }
   </style>
 </head>
 <body>
+
+<!-- LOGIN OVERLAY -->
+<div id="loginOverlay">
+  <div id="loginBox">
+    <div class="logo">💊</div>
+    <h2>Supplement Claim Checker</h2>
+    <p>Sign in with your Hanah One Google account to continue</p>
+    <div id="googleSignInBtn">
+      <div id="g_id_onload"
+           data-client_id="REPLACE_WITH_YOUR_GOOGLE_CLIENT_ID"
+           data-callback="handleGoogleSignIn"
+           data-auto_prompt="false">
+      </div>
+      <div class="g_id_signin" data-type="standard" data-size="large" data-theme="outline" data-text="sign_in_with" data-shape="rectangular"></div>
+    </div>
+    <div id="loginError"></div>
+  </div>
+</div>
 
 <header>
   <svg width="34" height="34" viewBox="0 0 34 34" fill="none">
@@ -380,20 +428,17 @@
     <button class="tab-btn" id="tabResearch" onclick="switchTab('research')">Claim Research</button>
     <button class="tab-btn" id="tabLabel" onclick="switchTab('label')">Label Checker</button>
   </nav>
+  <div id="userBadge">
+    <img id="userAvatar" src="" alt="" />
+    <span id="userName"></span>
+    <button onclick="signOut()">Sign out</button>
+  </div>
 </header>
 
 <div class="container">
 
 <!-- ===== CHECKER TAB ===== -->
 <div id="panelChecker" class="tab-panel active">
-
-  <!-- API KEY -->
-  <div id="apiKeyBar">
-    <label for="apiKey">Anthropic API Key</label>
-    <input type="password" id="apiKey" placeholder="sk-ant-api03-..." autocomplete="off" />
-    <button class="btn-sm" onclick="saveKey()">Save</button>
-    <span id="apiKeySaved">✓ Saved</span>
-  </div>
 
   <!-- INPUT FORM -->
   <div class="card">
@@ -587,30 +632,69 @@
 </div><!-- end container -->
 
 <script>
-// ─── API KEY ──────────────────────────────────────────────────────────────────
-const KEY_STORAGE = 'scc_anthropic_key';
+// ─── GOOGLE AUTH ──────────────────────────────────────────────────────────────
+let googleIdToken = null;
+let googleTokenExpiry = 0;
+
+function handleGoogleSignIn(response) {
+  try {
+    const parts = response.credential.split('.');
+    const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
+    if (!payload.email || !payload.email.endsWith('@hanah1.com')) {
+      const el = document.getElementById('loginError');
+      el.textContent = 'Access restricted to @hanah1.com accounts.';
+      el.style.display = 'block';
+      return;
+    }
+    googleIdToken = response.credential;
+    googleTokenExpiry = payload.exp * 1000;
+    sessionStorage.setItem('gtoken', googleIdToken);
+    sessionStorage.setItem('gtokenExpiry', String(googleTokenExpiry));
+    document.getElementById('loginOverlay').style.display = 'none';
+    const badge = document.getElementById('userBadge');
+    badge.style.display = 'flex';
+    document.getElementById('userName').textContent = payload.email;
+    if (payload.picture) document.getElementById('userAvatar').src = payload.picture;
+  } catch {
+    document.getElementById('loginError').textContent = 'Sign-in failed. Please try again.';
+    document.getElementById('loginError').style.display = 'block';
+  }
+}
+
+function signOut() {
+  sessionStorage.removeItem('gtoken');
+  sessionStorage.removeItem('gtokenExpiry');
+  googleIdToken = null;
+  document.getElementById('userBadge').style.display = 'none';
+  document.getElementById('loginOverlay').style.display = 'flex';
+}
+
+function getToken() {
+  if (googleIdToken && Date.now() < googleTokenExpiry) return googleIdToken;
+  // Token expired — force re-login
+  signOut();
+  return null;
+}
 
 window.addEventListener('DOMContentLoaded', () => {
-  const saved = localStorage.getItem(KEY_STORAGE);
-  if (saved) {
-    document.getElementById('apiKey').value = saved;
-    document.getElementById('apiKeySaved').style.display = 'inline';
+  // Restore session if token still valid
+  const saved = sessionStorage.getItem('gtoken');
+  const expiry = Number(sessionStorage.getItem('gtokenExpiry'));
+  if (saved && expiry > Date.now()) {
+    googleIdToken = saved;
+    googleTokenExpiry = expiry;
+    document.getElementById('loginOverlay').style.display = 'none';
+    try {
+      const payload = JSON.parse(atob(saved.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+      document.getElementById('userBadge').style.display = 'flex';
+      document.getElementById('userName').textContent = payload.email;
+      if (payload.picture) document.getElementById('userAvatar').src = payload.picture;
+    } catch {}
   }
   document.getElementById('statement').addEventListener('input', e => {
     document.getElementById('charCount').textContent = e.target.value.length;
   });
 });
-
-function saveKey() {
-  const k = document.getElementById('apiKey').value.trim();
-  if (k) {
-    localStorage.setItem(KEY_STORAGE, k);
-    document.getElementById('apiKeySaved').style.display = 'inline';
-    setTimeout(() => document.getElementById('apiKeySaved').style.display = 'none', 2000);
-  }
-}
-
-function getKey() { return document.getElementById('apiKey').value.trim(); }
 
 // ─── FDA SYSTEM PROMPT ───────────────────────────────────────────────────────
 const FDA_SYSTEM = `You are an expert FDA regulatory consultant specializing in dietary supplement marketing compliance.
@@ -645,10 +729,7 @@ Return ONLY valid JSON with no markdown code fences.`;
 
 // ─── ANALYSIS ────────────────────────────────────────────────────────────────
 async function runAnalysis() {
-  const apiKey  = getKey();
   const statement = document.getElementById('statement').value.trim();
-
-  if (!apiKey)   { alert('Please enter your Anthropic API key.'); return; }
   if (!statement){ alert('Please enter a marketing statement.'); return; }
 
   document.getElementById('analyzeBtn').disabled = true;
@@ -855,10 +936,13 @@ async function searchCompetitors(apiKey, statement) {
 }
 
 // ─── ANTHROPIC API CALL ───────────────────────────────────────────────────────
-async function callAnthropic(apiKey, body) {
+async function callAnthropic(_unused, body) {
+  const token = getToken();
+  if (!token) throw new Error('Session expired. Please sign in again.');
+
   const resp = await fetch('/api/anthropic', {
     method: 'POST',
-    headers: { 'x-api-key': apiKey, 'content-type': 'application/json' },
+    headers: { 'Authorization': `Bearer ${token}`, 'content-type': 'application/json' },
     body: JSON.stringify(body)
   });
 
@@ -1117,8 +1201,6 @@ function clearResearch() {
 }
 
 async function runResearch() {
-  const apiKey = getKey();
-  if (!apiKey) { alert('Please enter your Anthropic API key in the Claim Checker tab first.'); switchTab('checker'); return; }
   const queries = [...customKws];
   if (queries.length === 0) { alert('Select at least one category or enter a keyword.'); return; }
 
@@ -1353,8 +1435,6 @@ Required label elements for dietary supplements:
 Return ONLY valid JSON with no markdown fences.`;
 
 async function runLabelCheck() {
-  const apiKey = getKey();
-  if (!apiKey) { alert('Please enter your Anthropic API key in the Claim Checker tab.'); switchTab('checker'); return; }
   if (!labelImageData) { alert('Please upload a label image first.'); return; }
 
   document.getElementById('labelBtn').disabled = true;

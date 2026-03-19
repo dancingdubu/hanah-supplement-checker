@@ -503,10 +503,6 @@
 <!-- ===== RESEARCH TAB ===== -->
 <div id="panelResearch" class="tab-panel">
 
-  <!-- API KEY (shared reference) -->
-  <div style="padding:10px 14px;background:#fffbeb;border:1.5px solid #fbbf24;border-radius:8px;margin-bottom:16px;font-size:0.82rem;color:#92400e;">
-    Uses the same Anthropic API key entered above. Switch to Claim Checker tab to update it.
-  </div>
 
   <!-- SEARCH INPUT -->
   <div class="card">
@@ -729,6 +725,7 @@ Return ONLY valid JSON with no markdown code fences.`;
 
 // ─── ANALYSIS ────────────────────────────────────────────────────────────────
 async function runAnalysis() {
+  const apiKey = null;
   const statement = document.getElementById('statement').value.trim();
   if (!statement){ alert('Please enter a marketing statement.'); return; }
 
@@ -1201,6 +1198,7 @@ function clearResearch() {
 }
 
 async function runResearch() {
+  const apiKey = null;
   const queries = [...customKws];
   if (queries.length === 0) { alert('Select at least one category or enter a keyword.'); return; }
 
@@ -1435,6 +1433,7 @@ Required label elements for dietary supplements:
 Return ONLY valid JSON with no markdown fences.`;
 
 async function runLabelCheck() {
+  const apiKey = null;
   if (!labelImageData) { alert('Please upload a label image first.'); return; }
 
   document.getElementById('labelBtn').disabled = true;
